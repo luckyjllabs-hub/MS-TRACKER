@@ -269,7 +269,6 @@ function renderDashboardView() {
   let netWorthMinor = 0;
   let monthIncMinor = 0;
   let monthExpMinor = 0;
-  const currentMonthStr = new Date().toISOString().substring(0, 7);
 
   const accountBalances = {};
   appState.accounts.forEach(a => accountBalances[a.id] = a.startingBalanceMinor || 0);
@@ -277,10 +276,10 @@ function renderDashboardView() {
   appState.transactions.forEach(tx => {
     if (tx.type === 'expense') {
       if (accountBalances[tx.accountId] !== undefined) accountBalances[tx.accountId] -= tx.amountMinor;
-      if (tx.date.startsWith(currentMonthStr)) monthExpMinor += tx.amountMinor;
+      monthExpMinor += tx.amountMinor;
     } else if (tx.type === 'income') {
       if (accountBalances[tx.accountId] !== undefined) accountBalances[tx.accountId] += tx.amountMinor;
-      if (tx.date.startsWith(currentMonthStr)) monthIncMinor += tx.amountMinor;
+      monthIncMinor += tx.amountMinor;
     } else if (tx.type === 'transfer') {
       if (accountBalances[tx.accountId] !== undefined) accountBalances[tx.accountId] -= tx.amountMinor;
       if (accountBalances[tx.toAccountId] !== undefined) accountBalances[tx.toAccountId] += tx.amountMinor;
@@ -313,7 +312,7 @@ function renderDashboardView() {
 
   // Render Pictorial Spending Donut Breakdown & Net Worth Pie Chart
   renderOverviewDonutChart(monthExpMinor);
-  renderNetWorthPieChart(accountBalances, isNetWorthNegative);
+  renderNetWorthPieChart(monthIncMinor, monthExpMinor);
 
   // Monthly Budget Gauge
   const spentMinor = monthExpMinor;
@@ -482,61 +481,60 @@ function toggleNetWorthChartView() {
   }
 }
 
-// Render Net Worth Account Distribution Pie Chart
-function renderNetWorthPieChart(accountBalances, isNegativeNetWorth = false) {
+// Render Net Worth Cashflow Breakdown Pie Chart (Income vs Spent)
+function renderNetWorthPieChart(monthIncMinor = 0, monthExpMinor = 0) {
   const svg = document.getElementById('dash-networth-pie-svg');
   if (!svg) return;
   const legend = document.getElementById('dash-networth-pie-legend');
 
-  let validAccs = [];
-  if (isNegativeNetWorth) {
-    validAccs = appState.accounts.filter(a => !a.archived && (accountBalances[a.id] || 0) < 0);
-  } else {
-    validAccs = appState.accounts.filter(a => !a.archived && (accountBalances[a.id] || 0) > 0);
-  }
+  const total = (monthIncMinor || 0) + (monthExpMinor || 0);
 
-  if (validAccs.length === 0) {
-    validAccs = appState.accounts.filter(a => !a.archived && (accountBalances[a.id] || 0) !== 0);
-  }
-
-  const totalVal = validAccs.reduce((sum, a) => sum + Math.abs(accountBalances[a.id]), 0);
-
-  if (validAccs.length === 0 || totalVal <= 0) {
+  if (total <= 0) {
     svg.innerHTML = `<circle cx="50" cy="50" r="35" stroke="#E5E3DC" stroke-width="18" fill="none"/>`;
-    if (legend) legend.innerHTML = `<div class="text-[#7C8079] text-xs font-sans">No balance data</div>`;
+    if (legend) legend.innerHTML = `<div class="text-[#7C8079] text-xs font-sans">No cashflow activity</div>`;
     return;
   }
 
-  const colors = isNegativeNetWorth
-    ? ['#D87D56', '#D8A47F', '#C2593F', '#E89D75', '#B84328']
-    : ['#3B7A57', '#D87D56', '#8F9C8A', '#D8A47F', '#5C6757', '#94A3B8'];
+  const incPct = monthIncMinor / total;
+  const expPct = monthExpMinor / total;
 
-  let strokeDashoffset = 0;
   const radius = 35;
   const circumference = 2 * Math.PI * radius;
 
+  const incLen = incPct * circumference;
+  const expLen = expPct * circumference;
+
+  const incColor = '#3B7A57'; // Green
+  const expColor = '#D87D56'; // Terracotta Red
+
   let svgPaths = '';
-  let legendHtml = '';
 
-  validAccs.forEach((acc, idx) => {
-    const bal = Math.abs(accountBalances[acc.id]);
-    const pct = bal / totalVal;
-    const strokeDasharray = `${pct * circumference} ${circumference}`;
-    const strokeColor = colors[idx % colors.length];
+  if (monthIncMinor > 0) {
+    svgPaths += `<circle cx="50" cy="50" r="${radius}" stroke="${incColor}" stroke-width="18" fill="none" stroke-dasharray="${incLen} ${circumference - incLen}" stroke-dashoffset="0"/>`;
+  }
 
-    svgPaths += `<circle cx="50" cy="50" r="${radius}" stroke="${strokeColor}" stroke-width="18" fill="none" stroke-dasharray="${strokeDasharray}" stroke-dashoffset="${-strokeDashoffset}"/>`;
-    strokeDashoffset += pct * circumference;
+  if (monthExpMinor > 0) {
+    svgPaths += `<circle cx="50" cy="50" r="${radius}" stroke="${expColor}" stroke-width="18" fill="none" stroke-dasharray="${expLen} ${circumference - expLen}" stroke-dashoffset="${-incLen}"/>`;
+  }
 
-    legendHtml += `
+  const legendHtml = `
+    <div class="space-y-1.5 font-sans text-xs">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-1.5">
-          <span class="w-2.5 h-2.5 rounded-full" style="background-color: ${strokeColor}"></span>
-          <span class="font-semibold text-[#2D332A] truncate max-w-[90px]">${acc.icon || '🏦'} ${acc.name}</span>
+          <span class="w-2.5 h-2.5 rounded-full bg-[#3B7A57]"></span>
+          <span class="font-bold text-[#2D332A]">Income</span>
         </div>
-        <span class="font-bold text-[#2D332A] num-tabular">${Money.format(accountBalances[acc.id])}</span>
+        <span class="font-bold text-[#3B7A57] num-tabular">+${Money.format(monthIncMinor)}</span>
       </div>
-    `;
-  });
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-1.5">
+          <span class="w-2.5 h-2.5 rounded-full bg-[#D87D56]"></span>
+          <span class="font-bold text-[#2D332A]">Spent</span>
+        </div>
+        <span class="font-bold text-[#D87D56] num-tabular">-${Money.format(monthExpMinor)}</span>
+      </div>
+    </div>
+  `;
 
   svg.innerHTML = svgPaths;
   if (legend) legend.innerHTML = legendHtml;
@@ -712,24 +710,34 @@ function renderAnalyticsView() {
 }
 
 // Sheets Utility Controls
-function openSheet(htmlContent) {
+function openSheet(htmlContent, isFloating = false) {
   const backdrop = document.getElementById('sheet-backdrop');
   const area = document.getElementById('sheet-content-area');
   area.innerHTML = htmlContent;
+
+  if (isFloating) {
+    backdrop.className = 'fixed inset-0 bg-[#2D332A]/50 backdrop-blur-md z-50 flex items-center justify-center p-4 transition-all duration-300 fade-in';
+    area.className = 'w-full max-w-[370px] bg-[#FAF9F6]/95 backdrop-blur-xl border border-[#FFFFFF]/90 rounded-[32px] p-6 shadow-2xl max-h-[90vh] overflow-y-auto no-scrollbar space-y-4';
+  } else {
+    backdrop.className = 'fixed inset-0 bg-[#2D332A]/50 backdrop-blur-xs z-50 transition-opacity';
+    area.className = 'absolute bottom-0 inset-x-0 bg-[#FFFFFF] border-t border-[#E5E3DC] rounded-t-3xl p-5 max-h-[85vh] overflow-y-auto no-scrollbar space-y-4 shadow-2xl';
+  }
+
   backdrop.classList.remove('hidden');
 }
 
 function closeSheet() {
-  document.getElementById('sheet-backdrop').classList.add('hidden');
+  const backdrop = document.getElementById('sheet-backdrop');
+  backdrop.classList.add('hidden');
 }
 
-// SMS Smart Inbox Sheet (Redesigned to match reference UI)
+// SMS Smart Inbox Sheet (Floating Dialog with Frosted Glass Backdrop)
 function openSMSQueueSheet() {
   const queue = appState.smsQueue || [];
 
   if (queue.length === 0) {
     const emptyHtml = `
-      <div class="bg-[#FDFDFB] p-6 rounded-3xl text-[#2D332A] font-sans text-center space-y-4 fade-in">
+      <div class="text-[#2D332A] font-sans text-center space-y-4 fade-in">
         <div class="flex items-center justify-between border-b border-[#E5E3DC]/80 pb-4 mb-2">
           <div class="flex items-center gap-2.5">
             <svg class="w-5 h-5 text-[#235338]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
@@ -740,29 +748,39 @@ function openSMSQueueSheet() {
           </button>
         </div>
 
-        <div class="py-8 space-y-3">
+        <div class="py-6 space-y-3">
           <div class="w-16 h-16 rounded-full bg-[#EBF2EB] border border-[#D5E3D5] flex items-center justify-center text-[#235338] text-2xl mx-auto shadow-xs">
             📬
           </div>
           <h4 class="font-headers text-xl font-bold text-[#2D332A]">Smart Inbox Clear</h4>
           <p class="text-xs text-[#7C8079] max-w-xs mx-auto">No pending banking SMS notifications to parse right now.</p>
+          <button id="btn-reseed-sms" class="mt-3 px-4 py-2 bg-[#235338] text-[#FFFFFF] font-sans text-xs font-bold rounded-xl shadow-xs uppercase tracking-wider hover:bg-[#1A3E2A] transition-colors">
+            Load Example Stacked SMS
+          </button>
         </div>
       </div>
     `;
-    openSheet(emptyHtml);
+    openSheet(emptyHtml, true);
     document.getElementById('btn-close-sms-sheet')?.addEventListener('click', closeSheet);
+    document.getElementById('btn-reseed-sms')?.addEventListener('click', async () => {
+      const defaultSmsList = [
+        { id: "sms-1", rawText: "Alert: Spend of INR 450.00 on Food at Starbucks card 1234", bank: "HDFC", amountMinor: 45000, merchant: "Starbucks", suggestedCategory: "Food & Drink", suggestedAccount: "acc-1", confidence: "High Confidence", timestamp: Date.now() },
+        { id: "sms-2", rawText: "Txn: INR 280.00 debited for Uber ride on ICICI Card 5678", bank: "ICICI", amountMinor: 28000, merchant: "Uber", suggestedCategory: "Transport", suggestedAccount: "acc-3", confidence: "High Confidence", timestamp: Date.now() - 60000 },
+        { id: "sms-3", rawText: "Alert: INR 620.00 spent at Swiggy on HDFC Card 1234", bank: "HDFC", amountMinor: 62000, merchant: "Swiggy", suggestedCategory: "Food & Drink", suggestedAccount: "acc-1", confidence: "High Confidence", timestamp: Date.now() - 120000 }
+      ];
+      for (const s of defaultSmsList) await dbEngine.put("smsQueue", s);
+      await loadStateFromDB();
+      openSMSQueueSheet();
+      renderCurrentTab();
+    });
     return;
   }
 
-  // Display top item in queue with pagination count if multiple
   const sms = queue[0];
   const countBadge = queue.length > 1 ? `<span class="text-[11px] font-sans text-[#7C8079] bg-[#FAF9F6] px-2.5 py-0.5 rounded-full border border-[#E5E3DC]">1 of ${queue.length}</span>` : '';
-
-  // Get matching account details
   const matchingAcc = appState.accounts.find(a => a.id === sms.suggestedAccount) || appState.accounts[0];
   const accLabel = sms.bank || (matchingAcc ? matchingAcc.name : 'HDFC');
 
-  // Determine icon based on merchant or category
   let heroIcon = '☕';
   const mLower = (sms.merchant || '').toLowerCase();
   if (mLower.includes('uber') || mLower.includes('ola') || mLower.includes('cab')) heroIcon = '🚗';
@@ -773,7 +791,7 @@ function openSMSQueueSheet() {
   else heroIcon = '📦';
 
   const html = `
-    <div class="bg-[#FDFDFB] p-6 rounded-3xl text-[#2D332A] font-sans space-y-4 fade-in">
+    <div class="text-[#2D332A] font-sans space-y-4 fade-in">
       <!-- Header -->
       <div class="flex items-center justify-between border-b border-[#E5E3DC]/80 pb-4 mb-2">
         <div class="flex items-center gap-2.5">
@@ -829,7 +847,7 @@ function openSMSQueueSheet() {
     </div>
   `;
 
-  openSheet(html);
+  openSheet(html, true);
 
   document.getElementById('btn-close-sms-sheet')?.addEventListener('click', closeSheet);
 
