@@ -1,0 +1,115 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* MS Tracker — Zen Minimalist Design Tokens & Aesthetics */
+
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Fraunces:ital,opsz,wght@0,9..144,100..900;1,9..144,100..900&display=swap');
+
+:root {
+  --color-primary-sage: #5C6757;
+  --color-sage-light: #E4E8E3;
+  --color-sage-dark: #3F473B;
+  --color-emerald: #3B7A57;
+  --color-[#D87D56]: #D87D56;
+  --color-[#4E8765]: #4E8765;
+  --color-warm-bg: #F4F3EF;
+  --color-surface: #FFFFFF;
+  --color-surface-card: #FAF9F6;
+  --color-primary-text: #2D332A;
+  --color-muted-text: #7C8079;
+  --color-terracotta: #D8A47F;
+  --color-terracotta-light: #F7EBE3;
+  --color-border: #E5E3DC;
+  --color-border-subtle: #F0EEE8;
+  
+  --font-headers: 'Fraunces', serif;
+  --font-body: 'DM Sans', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--color-warm-bg);
+  color: var(--color-primary-text);
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* Safe area padding helper for Android / iOS status bars */
+.safe-area-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.pad-safe-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+.pad-safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Tabular numerals for precise financial numbers */
+.num-tabular {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* Phone Bezel Simulator for Desktop */
+.device-bezel {
+  box-shadow: 0 20px 40px -15px rgba(45, 51, 42, 0.15), 0 0 0 12px #2D332A;
+}
+
+/* Hide scrollbars */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Custom smooth transitions */
+.fade-in {
+  animation: fadeIn 0.2s ease-out forwards;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Interactive Numpad Key Animations */
+.btn-num-key {
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-num-key:active {
+  transform: scale(0.92);
+  background-color: #E4E8E3 !important;
+}
+
+/* Pulsing subtle cursor on display */
+@keyframes blink-cursor {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.2; }
+}
+
+.currency-cursor {
+  animation: blink-cursor 1.2s infinite;
+}
+
+/* Canvas celebration overlay */
+#celebration-canvas {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 100;
+}

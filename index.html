@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en" class="bg-[#F4F3EF]">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>MS Tracker — Private Personal Finance</title>
+
+  <!-- Google Fonts Imports -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Fraunces:ital,opsz,wght@0,9..144,100..900;1,9..144,100..900&display=swap" rel="stylesheet">
+  
+  <!-- PWA & Mobile Web App Meta Tags -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#3B7A57">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="MS Tracker">
+  
+  <!-- Compiled Tailwind CSS & Design System -->
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="bg-[#F4F3EF] text-[#2D332A] min-h-screen flex items-center justify-center p-0 sm:p-4 overflow-hidden select-none font-body">
+
+  <!-- Celebration Canvas Overlay -->
+  <canvas id="celebration-canvas"></canvas>
+
+  <!-- Mobile Frame Container -->
+  <div id="device-container" class="relative w-full max-w-[412px] h-[100vh] sm:h-[844px] bg-[#F4F3EF] sm:border-8 sm:border-[#2D332A] rounded-none sm:rounded-[40px] overflow-hidden flex flex-col justify-between device-bezel shadow-2xl">
+    
+    <!-- Top Bar -->
+    <div class="h-11 bg-[#F4F3EF] border-b border-[#E5E3DC]/60 flex items-center justify-between px-6 select-none flex-shrink-0 z-30">
+      <div class="text-xs font-sans font-bold tracking-wider text-[#2D332A] flex items-center gap-1.5">
+        <span class="w-2.5 h-2.5 rounded-full bg-[#3B7A57]"></span>
+        <span>MS Tracker</span>
+      </div>
+      <div class="hidden sm:block w-20 h-3.5 bg-[#E5E3DC] rounded-full"></div>
+      <div class="flex items-center gap-2 font-sans text-xs text-[#7C8079]">
+        <span class="text-[10px] bg-[#E4E8E3] text-[#3B7A57] px-2 py-0.5 rounded-full font-bold">LOCAL PRIVACY</span>
+        <span class="num-tabular font-bold">18:49</span>
+      </div>
+    </div>
+
+    <!-- Active Main Scroll Area -->
+    <div id="main-content-scroll" class="flex-1 overflow-y-auto overflow-x-hidden p-4 relative z-10 space-y-5 no-scrollbar">
+
+      <!-- ================= 1. VISUAL OVERVIEW REDESIGN (CLIENT FEEDBACK RESOLUTION) ================= -->
+      <div id="screen-dashboard" class="app-screen space-y-5">
+        <!-- Header -->
+        <div class="flex items-center justify-between">
+          <div>
+            <h1 class="font-headers text-4xl font-bold text-[#2D332A] tracking-tight">Overview</h1>
+          </div>
+          <button id="btn-sms-queue-shortcut" class="relative p-3 rounded-full bg-[#FFFFFF] border border-[#E5E3DC] hover:border-[#3B7A57] transition-colors shadow-xs">
+            <svg class="w-5 h-5 text-[#2D332A]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 01-6 0v-1m6 0H9" /></svg>
+            <span id="badge-sms-count" class="absolute -top-1 -right-1 w-5 h-5 bg-[#3B7A57] text-[#FFFFFF] font-sans text-xs font-bold rounded-full flex items-center justify-center">0</span>
+          </button>
+        </div>        <!-- Visual Hero Card 1: Reverted Net Worth Widget -->
+        <div class="bg-[#FFFFFF] p-6 rounded-3xl border border-[#E5E3DC] shadow-sm space-y-4">
+          <!-- Top Header: NET WORTH + Live badge + PIE toggle -->
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-sans text-[#7C8079] uppercase font-bold tracking-wider">NET WORTH</span>
+              <button id="btn-toggle-eye" title="Toggle Privacy Mask" class="text-xs text-[#7C8079] hover:text-[#2D332A] transition-colors">👁️</button>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-sans text-[#3B7A57] bg-[#E4E8E3] px-3 py-1 rounded-full font-bold">Live</span>
+              <button id="btn-toggle-networth-chart" title="Toggle Line Graph / Pie Chart" class="text-xs bg-[#FAF9F6] border border-[#E5E3DC] hover:border-[#3B7A57] text-[#5C6757] hover:text-[#3B7A57] px-2.5 py-1 rounded-full font-bold flex items-center gap-1 transition-all shadow-xs">
+                <span id="networth-chart-toggle-icon">📊</span>
+                <span id="networth-chart-toggle-lbl" class="text-[10px] font-sans uppercase">Pie</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Main Amount Display -->
+          <div>
+            <div id="dash-networth-val" class="font-headers text-5xl font-bold tracking-tight text-[#2D332A] num-tabular">₹0.00</div>
+          </div>
+
+          <!-- Full-Width Line Graph View -->
+          <div id="networth-line-view" class="w-full h-16 pt-1 transition-all">
+            <svg id="dash-hero-trend-svg" class="w-full h-full" viewBox="0 0 300 60" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="netWorthGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#3B7A57" stop-opacity="0.25"/>
+                  <stop offset="100%" stop-color="#3B7A57" stop-opacity="0.0"/>
+                </linearGradient>
+              </defs>
+              <path d="M 0,48 C 75,45 125,30 180,32 C 235,34 270,12 300,10 L 300,60 L 0,60 Z" fill="url(#netWorthGrad)" />
+              <path d="M 0,48 C 75,45 125,30 180,32 C 235,34 270,12 300,10" fill="none" stroke="#3B7A57" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </div>
+
+          <!-- Full-Width Pie Chart View (Hidden by default) -->
+          <div id="networth-pie-view" class="w-full hidden transition-all py-1">
+            <div class="flex items-center gap-3">
+              <div class="relative w-20 h-20 flex-shrink-0 flex items-center justify-center">
+                <svg id="dash-networth-pie-svg" class="w-full h-full -rotate-90" viewBox="0 0 100 100"></svg>
+              </div>
+              <div id="dash-networth-pie-legend" class="flex-1 space-y-1.5 text-xs font-sans">
+                <!-- Dynamic account pie breakdown legend -->
+              </div>
+            </div>
+          </div>
+
+          <!-- 2-Column Split Cards: Income vs Spent -->
+          <div class="grid grid-cols-2 gap-3 pt-2">
+            <!-- Income Card -->
+            <div class="bg-[#E4E8E3]/60 p-3.5 rounded-2xl border border-[#3B7A57]/20 flex items-center gap-3">
+              <div class="w-9 h-9 rounded-full bg-[#3B7A57] text-[#FFFFFF] flex items-center justify-center font-bold text-sm">↓</div>
+              <div>
+                <span class="text-[#7C8079] block text-[10px] uppercase font-bold">Income</span>
+                <span id="dash-income-val" class="text-[#3B7A57] font-bold text-base num-tabular">+₹0.00</span>
+              </div>
+            </div>
+
+            <!-- Spent Card -->
+            <div class="bg-[#F7EBE3]/60 p-3.5 rounded-2xl border border-[#D87D56]/20 flex items-center gap-3">
+              <div class="w-9 h-9 rounded-full bg-[#D87D56] text-[#FFFFFF] flex items-center justify-center font-bold text-sm">↑</div>
+              <div>
+                <span class="text-[#7C8079] block text-[10px] uppercase font-bold">Spent</span>
+                <span id="dash-expense-val" class="text-[#D87D56] font-bold text-base num-tabular">-₹0.00</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Visual Hero Card 2: Pictorial Spending breakdown (Donut Ring Chart) -->
+        <div class="bg-[#FFFFFF] p-6 rounded-3xl border border-[#E5E3DC] shadow-sm space-y-4">
+          <div class="flex items-center justify-between">
+            <h3 class="font-headers text-xl font-bold text-[#2D332A]">Spending Breakdown</h3>
+            <button id="btn-budget-details" class="text-xs font-sans text-[#3B7A57] font-bold hover:underline">Details ›</button>
+          </div>
+
+          <!-- Pictorial Donut Chart Display -->
+          <div class="flex items-center gap-4 py-1">
+            <div class="relative w-28 h-28 flex-shrink-0 flex items-center justify-center">
+              <svg id="dash-overview-donut-svg" class="w-full h-full -rotate-90" viewBox="0 0 100 100"></svg>
+              <div class="absolute inset-0 flex flex-col items-center justify-center">
+                <span id="dash-spent-val" class="text-sm font-bold text-[#2D332A] num-tabular">₹0.00</span>
+                <span class="text-[9px] text-[#7C8079] font-semibold uppercase">Total</span>
+              </div>
+            </div>
+
+            <!-- Pictorial Legend Pills -->
+            <div id="dash-overview-legend-pills" class="flex-1 space-y-2 text-xs font-sans">
+              <!-- Dynamically populated color-coded legend bars -->
+            </div>
+          </div>
+
+          <!-- Monthly Budget Progress Bar -->
+          <div class="space-y-1.5 pt-2 border-t border-[#F0EEE8]">
+            <div class="flex justify-between text-xs font-sans font-bold">
+              <span class="text-[#2D332A]">Monthly Limit</span>
+              <span id="dash-limit-val" class="text-[#7C8079] num-tabular">of ₹0.00 Limit</span>
+            </div>
+            <div class="w-full bg-[#E5E3DC] h-3 rounded-full overflow-hidden">
+              <div id="dash-budget-progress-bar" class="bg-[#3B7A57] h-full transition-all duration-300 rounded-full" style="width: 0%"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent Activity Pictorial Row Section -->
+        <div>
+          <div class="flex items-center justify-between mb-3 px-1">
+            <h3 class="font-headers text-xl font-bold text-[#2D332A]">Recent Activity</h3>
+            <button id="btn-view-full-ledger" class="text-xs font-sans text-[#3B7A57] font-bold hover:underline">Full Ledger ›</button>
+          </div>
+          <div id="dash-recent-tx-list" class="bg-[#FFFFFF] rounded-3xl border border-[#E5E3DC] shadow-sm divide-y divide-[#F0EEE8] overflow-hidden">
+            <!-- Dynamic Recent Transactions -->
+          </div>
+        </div>
+      </div>
+
+      <!-- ================= 2. TRANSACTIONS LEDGER ================= -->
+      <div id="screen-transactions" class="app-screen hidden space-y-4">
+        <div>
+          <h1 class="font-headers text-4xl font-bold text-[#2D332A] tracking-tight">Transactions</h1>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <div class="relative flex-1">
+            <input type="text" id="tx-search-input" placeholder="Search transactions..." class="w-full bg-[#FAF9F6] border border-[#E5E3DC] rounded-2xl font-sans text-xs text-[#2D332A] px-4 py-3 pl-9 focus:border-[#3B7A57] focus:outline-none placeholder:text-[#A4A6A1] shadow-xs" />
+            <svg class="w-4 h-4 text-[#7C8079] absolute left-3 top-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+          </div>
+          <button id="btn-open-filters" class="p-3 bg-[#FFFFFF] border border-[#E5E3DC] hover:border-[#3B7A57] rounded-2xl text-[#2D332A] font-sans text-xs flex items-center justify-center shadow-xs transition-colors">
+            <svg class="w-4 h-4 text-[#3B7A57]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
+          </button>
+        </div>
+
+        <div id="tx-grouped-ledger-container" class="space-y-4 pb-12">
+          <!-- Dynamic grouped transaction rows -->
+        </div>
+      </div>
+
+      <!-- ================= 3. GOALS SCREEN ================= -->
+      <div id="screen-goals" class="app-screen hidden space-y-4">
+        <div class="flex items-center justify-between border-b border-[#E5E3DC] pb-2">
+          <div>
+            <div class="text-xs font-sans text-[#7C8079] uppercase font-bold">Milestones</div>
+            <h1 class="font-headers text-3xl font-bold text-[#2D332A]">Savings Goals</h1>
+          </div>
+          <button id="btn-create-goal" class="px-4 py-2 bg-[#3B7A57] text-[#FFFFFF] font-sans text-xs font-bold rounded-xl hover:bg-[#2D332A] transition-colors uppercase">
+            + New Goal
+          </button>
+        </div>
+
+        <div id="goals-main-grid" class="grid grid-cols-2 gap-3 pb-12">
+          <!-- Dynamic goal cards -->
+        </div>
+      </div>
+
+      <!-- ================= 4. ANALYTICS SCREEN ================= -->
+      <div id="screen-analytics" class="app-screen hidden space-y-4">
+        <div class="flex items-center justify-between border-b border-[#E5E3DC] pb-2">
+          <div>
+            <h1 class="font-headers text-3xl font-bold text-[#2D332A]">Analytics</h1>
+          </div>
+        </div>
+
+        <div class="flex border-b border-[#E5E3DC] select-none flex-shrink-0">
+          <button data-anab="overview" class="analytics-subtab-btn w-1/5 text-center py-2 font-sans text-[10px] uppercase border-b-2 font-bold transition-colors border-[#3B7A57] text-[#3B7A57]">Overview</button>
+          <button data-anab="categories" class="analytics-subtab-btn w-1/5 text-center py-2 font-sans text-[10px] uppercase border-b-2 font-bold transition-colors border-transparent text-[#7C8079]">Categories</button>
+          <button data-anab="accounts" class="analytics-subtab-btn w-1/5 text-center py-2 font-sans text-[10px] uppercase border-b-2 font-bold transition-colors border-transparent text-[#7C8079]">Accounts</button>
+          <button data-anab="tags" class="analytics-subtab-btn w-1/5 text-center py-2 font-sans text-[10px] uppercase border-b-2 font-bold transition-colors border-transparent text-[#7C8079]">Tags</button>
+          <button data-anab="cashflow" class="analytics-subtab-btn w-1/5 text-center py-2 font-sans text-[10px] uppercase border-b-2 font-bold transition-colors border-transparent text-[#7C8079]">Cashflow</button>
+        </div>
+
+        <div id="an-panel-overview" class="space-y-4">
+          <div class="grid grid-cols-2 gap-3">
+            <div class="bg-[#FFFFFF] p-3 rounded-xl border border-[#E5E3DC]">
+              <span class="text-[9px] font-sans text-[#7C8079] uppercase font-medium">Income</span>
+              <div id="an-kpi-inc" class="font-sans text-base font-bold text-[#3B7A57] mt-0.5 num-tabular">₹0.00</div>
+            </div>
+            <div class="bg-[#FFFFFF] p-3 rounded-xl border border-[#E5E3DC]">
+              <span class="text-[9px] font-sans text-[#7C8079] uppercase font-medium">Expenses</span>
+              <div id="an-kpi-exp" class="font-sans text-base font-bold text-[#D87D56] mt-0.5 num-tabular">₹0.00</div>
+            </div>
+            <div class="bg-[#FFFFFF] p-3 rounded-xl border border-[#E5E3DC]">
+              <span class="text-[9px] font-sans text-[#7C8079] uppercase font-medium">Saved</span>
+              <div id="an-kpi-saved" class="font-sans text-base font-bold text-[#3B7A57] mt-0.5 num-tabular">₹0.00</div>
+            </div>
+            <div class="bg-[#FFFFFF] p-3 rounded-xl border border-[#E5E3DC]">
+              <span class="text-[9px] font-sans text-[#7C8079] uppercase font-medium">Avg Daily Spend</span>
+              <div id="an-kpi-daily" class="font-sans text-base font-bold text-[#2D332A] mt-0.5 num-tabular">₹0.00</div>
+            </div>
+          </div>
+
+          <div class="bg-[#FFFFFF] p-4 rounded-2xl border border-[#E5E3DC] space-y-2">
+            <span class="text-[10px] font-sans text-[#7C8079] uppercase tracking-wider block font-semibold">Daily Trend</span>
+            <div class="flex items-center justify-center">
+              <svg id="an-trend-svg" class="w-full h-36" viewBox="0 0 320 160"></svg>
+            </div>
+          </div>
+        </div>
+
+        <div id="an-panel-categories" class="hidden space-y-4">
+          <div class="bg-[#FFFFFF] p-4 rounded-2xl border border-[#E5E3DC] space-y-3">
+            <span class="text-[10px] font-sans text-[#7C8079] uppercase tracking-wider block font-semibold">Category Allocation</span>
+            <div class="flex items-center justify-center py-2">
+              <svg id="an-donut-svg" class="w-56 h-56" viewBox="0 0 240 240"></svg>
+            </div>
+            <div id="an-donut-legend" class="space-y-1.5 pt-2 border-t border-[#F0EEE8]"></div>
+          </div>
+        </div>
+
+        <div id="an-panel-accounts" class="hidden space-y-3">
+          <div id="an-accounts-list" class="space-y-2"></div>
+        </div>
+
+        <div id="an-panel-tags" class="hidden space-y-3">
+          <div id="an-tags-list" class="space-y-2"></div>
+        </div>
+
+        <div id="an-panel-cashflow" class="hidden space-y-4">
+          <div class="bg-[#FFFFFF] p-4 rounded-2xl border border-[#E5E3DC] space-y-3">
+            <span class="text-[10px] font-sans text-[#7C8079] uppercase tracking-wider block font-semibold">Net Cashflow</span>
+            <div id="an-cashflow-bars" class="space-y-3"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================= 5. SETTINGS SCREEN ================= -->
+      <div id="screen-settings" class="app-screen hidden space-y-4 pb-12">
+        <div class="border-b border-[#E5E3DC] pb-2">
+          <h1 class="font-headers text-3xl font-bold text-[#2D332A]">Settings</h1>
+        </div>
+
+        <!-- Connected Accounts Carousel Section -->
+        <div>
+          <div class="flex items-center justify-between mb-2.5 px-1">
+            <h3 class="font-headers text-xl font-bold text-[#2D332A]">Accounts Overview</h3>
+            <button id="btn-manage-accounts" class="text-xs font-sans text-[#3B7A57] font-bold hover:underline">+ Manage</button>
+          </div>
+          <div id="dash-accounts-carousel" class="flex gap-3 overflow-x-auto pb-1 no-scrollbar">
+            <!-- Dynamic Color-Accented Account Cards -->
+          </div>
+        </div>
+
+        <div class="space-y-3">
+          <div class="bg-[#FFFFFF] rounded-2xl border border-[#E5E3DC] divide-y divide-[#F0EEE8] overflow-hidden">
+            <button id="btn-sett-accounts" class="w-full p-4 flex items-center justify-between text-left hover:bg-[#F4F3EF]/50 transition-colors">
+              <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl bg-[#E4E8E3] text-[#3B7A57] flex items-center justify-center font-bold">🏦</div>
+                <div>
+                  <div class="text-sm font-semibold text-[#2D332A] font-sans">Manage Accounts</div>
+                  <div class="text-xs text-[#7C8079] font-sans">Bank, Cash, Cards, Wallets</div>
+                </div>
+              </div>
+              <span class="text-[#7C8079] text-sm">›</span>
+            </button>
+            <button id="btn-sett-categories" class="w-full p-4 flex items-center justify-between text-left hover:bg-[#F4F3EF]/50 transition-colors">
+              <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl bg-[#E4E8E3] text-[#3B7A57] flex items-center justify-center font-bold">🏷️</div>
+                <div>
+                  <div class="text-sm font-semibold text-[#2D332A] font-sans">Manage Categories</div>
+                  <div class="text-xs text-[#7C8079] font-sans">Icons, limits, reorder</div>
+                </div>
+              </div>
+              <span class="text-[#7C8079] text-sm">›</span>
+            </button>
+          </div>
+
+          <div class="bg-[#FFFFFF] rounded-2xl border border-[#E5E3DC] divide-y divide-[#F0EEE8] overflow-hidden">
+            <button id="btn-sett-install-app" class="w-full p-4 flex items-center justify-between text-left hover:bg-[#F4F3EF]/50 transition-colors">
+              <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl bg-[#E4E8E3] text-[#3B7A57] flex items-center justify-center font-bold">📲</div>
+                <div>
+                  <div class="text-sm font-semibold text-[#2D332A] font-sans">Install Mobile App (PWA / APK)</div>
+                  <div class="text-xs text-[#7C8079] font-sans">Install directly onto your Android device home screen</div>
+                </div>
+              </div>
+              <span class="text-[#3B7A57] font-bold text-xs bg-[#E4E8E3] px-2.5 py-1 rounded-full">INSTALL</span>
+            </button>
+            <button id="btn-sett-export" class="w-full p-4 flex items-center justify-between text-left hover:bg-[#F4F3EF]/50 transition-colors">
+              <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl bg-[#E4E8E3] text-[#3B7A57] flex items-center justify-center font-bold">📤</div>
+                <div>
+                  <div class="text-sm font-semibold text-[#2D332A] font-sans">Export Financial Data</div>
+                  <div class="text-xs text-[#7C8079] font-sans">Download CSV ledger</div>
+                </div>
+              </div>
+              <span class="text-[#7C8079] text-sm">›</span>
+            </button>
+            <button id="btn-sett-backup" class="w-full p-4 flex items-center justify-between text-left hover:bg-[#F4F3EF]/50 transition-colors">
+              <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl bg-[#E4E8E3] text-[#3B7A57] flex items-center justify-center font-bold">💾</div>
+                <div>
+                  <div class="text-sm font-semibold text-[#2D332A] font-sans">Local Backup & Restore</div>
+                  <div class="text-xs text-[#7C8079] font-sans">JSON database snapshot</div>
+                </div>
+              </div>
+              <span class="text-[#7C8079] text-sm">›</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="text-center text-xs font-sans text-[#7C8079] pt-4 space-y-1">
+          <div>MS Tracker • Local-First Personal Finance</div>
+          <div class="text-[#3B7A57] font-bold">Your data stays 100% private on this device.</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Bottom Navigation Bar -->
+    <div class="h-16 bg-[#FFFFFF] border-t border-[#E5E3DC] flex items-center justify-between px-3 relative flex-shrink-0 z-30">
+      <button data-tab="dashboard" class="nav-tab-btn flex-1 h-full flex flex-col items-center justify-center text-[#3B7A57]">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
+        <span class="text-[9px] font-sans font-bold tracking-wider mt-0.5 uppercase">Home</span>
+      </button>
+
+      <button data-tab="transactions" class="nav-tab-btn flex-1 h-full flex flex-col items-center justify-center text-[#7C8079]">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
+        <span class="text-[9px] font-sans font-medium tracking-wider mt-0.5 uppercase">History</span>
+      </button>
+
+      <div class="relative w-12 h-12 -translate-y-3 flex-shrink-0">
+        <button id="btn-fab-add" class="absolute inset-0 bg-[#3B7A57] active:scale-95 text-[#FFFFFF] rounded-full flex items-center justify-center shadow-md hover:bg-[#2D332A] transition-all">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4" /></svg>
+        </button>
+      </div>
+
+      <button data-tab="goals" class="nav-tab-btn flex-1 h-full flex flex-col items-center justify-center text-[#7C8079]">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+        <span class="text-[9px] font-sans font-medium tracking-wider mt-0.5 uppercase">Goals</span>
+      </button>
+
+      <button data-tab="settings" class="nav-tab-btn flex-1 h-full flex flex-col items-center justify-center text-[#7C8079]">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+        <span class="text-[9px] font-sans font-medium tracking-wider mt-0.5 uppercase">Settings</span>
+      </button>
+    </div>
+
+    <!-- Generic Zen Bottom Sheet Overlay -->
+    <div id="sheet-backdrop" class="fixed inset-0 bg-[#2D332A]/50 backdrop-blur-xs z-50 hidden transition-opacity">
+      <div id="sheet-content-area" class="absolute bottom-0 inset-x-0 bg-[#FFFFFF] border-t border-[#E5E3DC] rounded-t-3xl p-5 max-h-[85vh] overflow-y-auto no-scrollbar space-y-4 shadow-2xl">
+        <!-- Dynamic Content Injected -->
+      </div>
+    </div>
+
+  </div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
