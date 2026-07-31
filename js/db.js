@@ -176,7 +176,13 @@ class MSDatabase {
       for (const r of defaultRecurring) await this.put("recurring", r);
 
       // Seed SMS Queue & Rules
-      await this.put("smsQueue", { id: "sms-1", rawText: "Alert: Spend of INR 450.00 on Food at Starbucks card 1234", bank: "HDFC", amountMinor: 450, merchant: "Starbucks", suggestedCategory: "Food & Drink", suggestedAccount: "acc-1", confidence: "High Confidence", timestamp: Date.now() });
+      const defaultSmsList = [
+        { id: "sms-1", rawText: "Alert: Spend of INR 450.00 on Food at Starbucks card 1234", bank: "HDFC", amountMinor: 45000, merchant: "Starbucks", suggestedCategory: "Food & Drink", suggestedAccount: "acc-1", confidence: "High Confidence", timestamp: Date.now() },
+        { id: "sms-2", rawText: "Txn: INR 280.00 debited for Uber ride on ICICI Card 5678", bank: "ICICI", amountMinor: 28000, merchant: "Uber", suggestedCategory: "Transport", suggestedAccount: "acc-3", confidence: "High Confidence", timestamp: Date.now() - 60000 },
+        { id: "sms-3", rawText: "Alert: INR 620.00 spent at Swiggy on HDFC Card 1234", bank: "HDFC", amountMinor: 62000, merchant: "Swiggy", suggestedCategory: "Food & Drink", suggestedAccount: "acc-1", confidence: "High Confidence", timestamp: Date.now() - 120000 }
+      ];
+      for (const s of defaultSmsList) await this.put("smsQueue", s);
+
       await this.put("smsRules", { id: "rule-1", bank: "HDFC Bank", enabled: true, pattern: "debited by|spent on" });
       await this.put("smsRules", { id: "rule-2", bank: "SBI", enabled: true, pattern: "debited for|spent at" });
 
