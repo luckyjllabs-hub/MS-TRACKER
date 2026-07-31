@@ -22,7 +22,7 @@ function copyRecursive(src, dest) {
 }
 
 // Files and folders to copy to www
-const itemsToCopy = ['index.html', 'manifest.json', 'sw.js', 'css', 'js'];
+const itemsToCopy = ['index.html', 'manifest.json', 'sw.js', 'css', 'js', 'icons'];
 
 for (const item of itemsToCopy) {
   const srcPath = path.join(__dirname, item);

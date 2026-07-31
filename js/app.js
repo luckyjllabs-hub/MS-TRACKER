@@ -81,6 +81,53 @@ const AndroidNative = {
   }
 };
 
+function triggerCelebration() {
+  const canvas = document.getElementById('celebration-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  canvas.style.position = 'fixed';
+  canvas.style.top = '0';
+  canvas.style.left = '0';
+  canvas.style.pointerEvents = 'none';
+  canvas.style.zIndex = '9999';
+
+  const particles = [];
+  const colors = ['#3B7A57', '#D87D56', '#8F9C8A', '#D8A47F', '#5C6757', '#FFD700'];
+  for (let i = 0; i < 80; i++) {
+    particles.push({
+      x: canvas.width / 2,
+      y: canvas.height / 2,
+      vx: (Math.random() - 0.5) * 12,
+      vy: (Math.random() - 0.7) * 14,
+      size: Math.random() * 8 + 4,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      alpha: 1
+    });
+  }
+
+  function update() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    let active = false;
+    particles.forEach(p => {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.3;
+      p.alpha -= 0.015;
+      if (p.alpha > 0) {
+        active = true;
+        ctx.globalAlpha = p.alpha;
+        ctx.fillStyle = p.color;
+        ctx.fillRect(p.x, p.y, p.size, p.size);
+      }
+    });
+    if (active) requestAnimationFrame(update);
+    else ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+  update();
+}
+
 function setupPullToRefresh() {
   const container = document.getElementById('main-content-scroll');
   if (!container) return;
@@ -153,9 +200,11 @@ function setupEventListeners() {
   });
 
   // Dashboard Shortcuts
+  document.getElementById('btn-sms-queue-shortcut')?.addEventListener('click', openSMSQueueSheet);
+  document.getElementById('btn-budget-details')?.addEventListener('click', openBudgetDetailsSheet);
   document.getElementById('btn-manage-accounts')?.addEventListener('click', openManageAccountsSheet);
   document.getElementById('btn-view-full-ledger')?.addEventListener('click', () => switchTab('transactions'));
-  document.getElementById('btn-create-goal')?.addEventListener('click', () => { if (typeof openCreateGoalSheet === 'function') openCreateGoalSheet(); });
+  document.getElementById('btn-create-goal')?.addEventListener('click', openCreateGoalSheet);
   // Net Worth Chart Toggle & Eye Privacy Mask
   document.getElementById('btn-toggle-networth-chart')?.addEventListener('click', toggleNetWorthChartView);
   document.getElementById('btn-toggle-eye')?.addEventListener('click', togglePrivacyMask);
@@ -248,33 +297,16 @@ function renderDashboardView() {
 
   // Render Net Worth Value & Growth styling
   const netWorthValEl = document.getElementById('dash-networth-val');
-  netWorthValEl.innerText = Money.format(netWorthMinor);
-  if (isNetWorthNegative) {
-    netWorthValEl.className = 'font-headers text-3xl sm:text-4xl font-bold tracking-tight text-[#D87D56] num-tabular';
-  } else {
-    netWorthValEl.className = 'font-headers text-3xl sm:text-4xl font-bold tracking-tight text-[#2D332A] num-tabular';
-  }
+  netWorthValEl.innerText = isPrivacyMasked ? "••••••••" : Money.format(netWorthMinor);
+  netWorthValEl.className = isNetWorthNegative
+    ? 'font-headers text-3xl sm:text-4xl font-bold tracking-tight text-[#D87D56] num-tabular'
+    : 'font-headers text-3xl sm:text-4xl font-bold tracking-tight text-[#2D332A] num-tabular';
 
   // Mirrored Trend Line Graph for Negative Net Worth
   renderNetWorthTrendGraph(isNetWorthNegative);
 
   document.getElementById('dash-income-val').innerText = `+${Money.format(monthIncMinor)}`;
   document.getElementById('dash-expense-val').innerText = `-${Money.format(monthExpMinor)}`;
-
-  // Saved & Budget Left metrics for 4-column grid
-  const savedMinor = Math.max(monthIncMinor - monthExpMinor, 0);
-  const totalBudgetMinor = appState.categories.reduce((sum, c) => sum + (c.monthlyLimitMinor || 0), 0);
-  const budgetLeftMinor = Math.max(totalBudgetMinor - monthExpMinor, 0);
-  const budgetLeftPct = totalBudgetMinor > 0 ? Math.round((budgetLeftMinor / totalBudgetMinor) * 100) : 0;
-
-  const savedEl = document.getElementById('dash-saved-val');
-  if (savedEl) savedEl.innerText = Money.format(savedMinor);
-
-  const budgetLeftEl = document.getElementById('dash-budget-left-val');
-  if (budgetLeftEl) budgetLeftEl.innerText = Money.format(budgetLeftMinor);
-
-  const budgetPctEl = document.getElementById('dash-budget-left-pct');
-  if (budgetPctEl) budgetPctEl.innerText = `${budgetLeftPct}% left`;
 
   // Populate Accounts Carousel
   populateAccountsCarousel(accountBalances);
@@ -285,13 +317,14 @@ function renderDashboardView() {
 
   // Monthly Budget Gauge
   const spentMinor = monthExpMinor;
+  const totalBudgetMinor = appState.categories.reduce((sum, c) => sum + (c.monthlyLimitMinor || 0), 0);
   const pct = totalBudgetMinor > 0 ? Math.min((spentMinor / totalBudgetMinor) * 100, 100) : 0;
 
   document.getElementById('dash-spent-val').innerText = Money.format(spentMinor);
   document.getElementById('dash-limit-val').innerText = `of ${Money.format(totalBudgetMinor)} Limit`;
   document.getElementById('dash-budget-progress-bar').style.width = `${pct}%`;
 
-  // Recent Transactions List (Sorted Chronologically Descending: Most Recent Payment at Top)
+  // Recent Transactions List
   const recentList = document.getElementById('dash-recent-tx-list');
   recentList.innerHTML = '';
 
@@ -309,7 +342,6 @@ function renderDashboardView() {
     recentList.insertAdjacentHTML('beforeend', Components.TransactionRow(tx, acc ? acc.name : '', cat ? cat.icon : '', cat ? cat.name : 'Uncategorized'));
   });
 
-  // Attach click listeners to transaction rows
   document.querySelectorAll('#dash-recent-tx-list [data-txid]').forEach(row => {
     row.addEventListener('click', () => openTransactionDetailSheet(row.dataset.txid));
   });
@@ -317,7 +349,7 @@ function renderDashboardView() {
   document.getElementById('badge-sms-count').innerText = appState.smsQueue.length;
 }
 
-// Render Net Worth Trend Line Graph (Supports Positive Growth vs Negative Deficit Mirroring)
+// Render Net Worth Trend Line Graph
 function renderNetWorthTrendGraph(isNegative = false) {
   const svg = document.getElementById('dash-hero-trend-svg');
   if (!svg) return;
@@ -325,7 +357,6 @@ function renderNetWorthTrendGraph(isNegative = false) {
   const color = isNegative ? '#D87D56' : '#3B7A57';
   const gradId = isNegative ? 'netWorthGradNeg' : 'netWorthGrad';
 
-  // Upward growth curve for positive vs downward slope curve for negative (viewBox 0 0 300 60)
   const fillPath = isNegative
     ? 'M 0,12 C 75,15 125,28 180,30 C 235,32 270,48 300,50 L 300,60 L 0,60 Z'
     : 'M 0,48 C 75,45 125,30 180,32 C 235,34 270,12 300,10 L 300,60 L 0,60 Z';
@@ -417,16 +448,15 @@ function togglePrivacyMask() {
 
   isPrivacyMasked = !isPrivacyMasked;
   if (isPrivacyMasked) {
-    netWorthEl.dataset.realVal = netWorthEl.innerText;
     netWorthEl.innerText = "••••••••";
     if (eyeBtn) eyeBtn.innerText = "🙈";
   } else {
-    if (netWorthEl.dataset.realVal) netWorthEl.innerText = netWorthEl.dataset.realVal;
     if (eyeBtn) eyeBtn.innerText = "👁️";
+    renderDashboardView();
   }
 }
 
-// Toggle Net Worth Chart View (Line Graph <-> Pie Chart)
+// Toggle Net Worth Chart View
 let currentNetWorthChart = 'line';
 
 function toggleNetWorthChartView() {
@@ -452,13 +482,12 @@ function toggleNetWorthChartView() {
   }
 }
 
-// Render Net Worth Account Distribution Pie Chart (Mirrors Positive vs Negative Net Worth)
+// Render Net Worth Account Distribution Pie Chart
 function renderNetWorthPieChart(accountBalances, isNegativeNetWorth = false) {
   const svg = document.getElementById('dash-networth-pie-svg');
   if (!svg) return;
   const legend = document.getElementById('dash-networth-pie-legend');
 
-  // Filter relevant accounts: positive assets when net worth is positive, or negative liabilities when negative
   let validAccs = [];
   if (isNegativeNetWorth) {
     validAccs = appState.accounts.filter(a => !a.archived && (accountBalances[a.id] || 0) < 0);
@@ -466,7 +495,6 @@ function renderNetWorthPieChart(accountBalances, isNegativeNetWorth = false) {
     validAccs = appState.accounts.filter(a => !a.archived && (accountBalances[a.id] || 0) > 0);
   }
 
-  // Fallback to all non-zero accounts if filtered list is empty
   if (validAccs.length === 0) {
     validAccs = appState.accounts.filter(a => !a.archived && (accountBalances[a.id] || 0) !== 0);
   }
@@ -618,6 +646,7 @@ function populateAccountsCarousel(balances) {
 function renderSettingsView() {
   populateAccountsCarousel();
 }
+
 function switchAnalyticsSubtab(subTab) {
   appState.currentAnalyticsSubtab = subTab;
 
@@ -653,6 +682,9 @@ function renderAnalyticsView() {
   document.getElementById('an-kpi-saved').innerText = Money.format(Math.max(incSumMinor - expSumMinor, 0));
   document.getElementById('an-kpi-daily').innerText = Money.format(Math.round(expSumMinor / 30));
 
+  // Render SVG Trend Line on Overview tab
+  Analytics.renderTrendLine(document.getElementById('an-trend-svg'), appState.transactions);
+
   if (appState.currentAnalyticsSubtab === 'categories') {
     Analytics.renderCategoryDonut(
       document.getElementById('an-donut-svg'),
@@ -660,6 +692,22 @@ function renderAnalyticsView() {
       appState.categories,
       appState.transactions
     );
+  } else if (appState.currentAnalyticsSubtab === 'accounts') {
+    const balances = {};
+    appState.accounts.forEach(a => balances[a.id] = a.startingBalanceMinor || 0);
+    appState.transactions.forEach(tx => {
+      if (tx.type === 'expense' && balances[tx.accountId] !== undefined) balances[tx.accountId] -= tx.amountMinor;
+      else if (tx.type === 'income' && balances[tx.accountId] !== undefined) balances[tx.accountId] += tx.amountMinor;
+      else if (tx.type === 'transfer') {
+        if (balances[tx.accountId] !== undefined) balances[tx.accountId] -= tx.amountMinor;
+        if (balances[tx.toAccountId] !== undefined) balances[tx.toAccountId] += tx.amountMinor;
+      }
+    });
+    Analytics.renderAccountsList(document.getElementById('an-accounts-list'), appState.accounts, balances);
+  } else if (appState.currentAnalyticsSubtab === 'tags') {
+    Analytics.renderTagsList(document.getElementById('an-tags-list'), appState.tags, appState.transactions);
+  } else if (appState.currentAnalyticsSubtab === 'cashflow') {
+    Analytics.renderCashflowBars(document.getElementById('an-cashflow-bars'), appState.transactions);
   }
 }
 
@@ -675,7 +723,262 @@ function closeSheet() {
   document.getElementById('sheet-backdrop').classList.add('hidden');
 }
 
-// Filter Bottom Sheet (Category-First Filtering)
+// SMS Smart Inbox Sheet (Redesigned to match reference UI)
+function openSMSQueueSheet() {
+  const queue = appState.smsQueue || [];
+
+  if (queue.length === 0) {
+    const emptyHtml = `
+      <div class="bg-[#FDFDFB] p-6 rounded-3xl text-[#2D332A] font-sans text-center space-y-4 fade-in">
+        <div class="flex items-center justify-between border-b border-[#E5E3DC]/80 pb-4 mb-2">
+          <div class="flex items-center gap-2.5">
+            <svg class="w-5 h-5 text-[#235338]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+            <h3 class="font-headers text-xl font-bold text-[#2D332A]">Smart Inbox</h3>
+          </div>
+          <button id="btn-close-sms-sheet" class="text-[#5C6757] hover:text-[#2D332A] p-1.5 rounded-full hover:bg-[#E5E3DC]/40 transition-colors">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+
+        <div class="py-8 space-y-3">
+          <div class="w-16 h-16 rounded-full bg-[#EBF2EB] border border-[#D5E3D5] flex items-center justify-center text-[#235338] text-2xl mx-auto shadow-xs">
+            📬
+          </div>
+          <h4 class="font-headers text-xl font-bold text-[#2D332A]">Smart Inbox Clear</h4>
+          <p class="text-xs text-[#7C8079] max-w-xs mx-auto">No pending banking SMS notifications to parse right now.</p>
+        </div>
+      </div>
+    `;
+    openSheet(emptyHtml);
+    document.getElementById('btn-close-sms-sheet')?.addEventListener('click', closeSheet);
+    return;
+  }
+
+  // Display top item in queue with pagination count if multiple
+  const sms = queue[0];
+  const countBadge = queue.length > 1 ? `<span class="text-[11px] font-sans text-[#7C8079] bg-[#FAF9F6] px-2.5 py-0.5 rounded-full border border-[#E5E3DC]">1 of ${queue.length}</span>` : '';
+
+  // Get matching account details
+  const matchingAcc = appState.accounts.find(a => a.id === sms.suggestedAccount) || appState.accounts[0];
+  const accLabel = sms.bank || (matchingAcc ? matchingAcc.name : 'HDFC');
+
+  // Determine icon based on merchant or category
+  let heroIcon = '☕';
+  const mLower = (sms.merchant || '').toLowerCase();
+  if (mLower.includes('uber') || mLower.includes('ola') || mLower.includes('cab')) heroIcon = '🚗';
+  else if (mLower.includes('amazon') || mLower.includes('flipkart') || mLower.includes('shopping')) heroIcon = '🛍️';
+  else if (mLower.includes('swiggy') || mLower.includes('zomato') || mLower.includes('food')) heroIcon = '🍔';
+  else if (mLower.includes('starbucks') || mLower.includes('coffee') || mLower.includes('cafe')) heroIcon = '☕';
+  else if (mLower.includes('netflix') || mLower.includes('spotify') || mLower.includes('movie')) heroIcon = '🎬';
+  else heroIcon = '📦';
+
+  const html = `
+    <div class="bg-[#FDFDFB] p-6 rounded-3xl text-[#2D332A] font-sans space-y-4 fade-in">
+      <!-- Header -->
+      <div class="flex items-center justify-between border-b border-[#E5E3DC]/80 pb-4 mb-2">
+        <div class="flex items-center gap-2.5">
+          <svg class="w-5 h-5 text-[#235338]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+          <h3 class="font-headers text-xl font-bold text-[#2D332A] tracking-tight">Smart Inbox</h3>
+          ${countBadge}
+        </div>
+        <button id="btn-close-sms-sheet" class="text-[#5C6757] hover:text-[#2D332A] p-1.5 rounded-full hover:bg-[#E5E3DC]/40 transition-colors">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <!-- Hero Merchant Card -->
+      <div class="text-center pt-2">
+        <div class="w-16 h-16 rounded-full bg-[#EBF2EB] border border-[#D5E3D5] flex items-center justify-center text-[#235338] text-2xl mx-auto mb-3 shadow-xs">
+          ${heroIcon}
+        </div>
+
+        <h2 class="font-headers text-2xl font-bold text-[#2D332A] tracking-tight">${sms.merchant || 'Activity'}</h2>
+
+        <div class="flex justify-center my-2">
+          <span class="bg-[#E8F3EB] border border-[#D5E3D5] text-[#235338] text-[11px] font-semibold px-3 py-1 rounded-full flex items-center gap-1.5 shadow-2xs">
+            <svg class="w-3.5 h-3.5 text-[#235338]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+            <span>${sms.confidence || 'High Confidence'}</span>
+          </span>
+        </div>
+
+        <div class="my-3">
+          <span class="font-sans text-4xl sm:text-5xl font-bold text-[#235338] tracking-tight num-tabular">${Money.format(sms.amountMinor)}</span>
+        </div>
+
+        <div class="flex justify-center mb-4">
+          <span class="bg-[#DCEAE0] text-[#235338] text-xs font-bold px-3.5 py-1.5 rounded-full shadow-2xs">${accLabel} - Card 1234</span>
+        </div>
+      </div>
+
+      <!-- Raw SMS Content Box -->
+      <div class="bg-[#F7F7F5] border border-[#DDE2DC] rounded-2xl p-4 text-center text-xs text-[#5C6757] leading-relaxed my-3 font-sans shadow-inner">
+        "${sms.rawText || ''}"
+      </div>
+
+      <!-- Actions -->
+      <div class="pt-2 space-y-2">
+        <button id="btn-approve-current-sms" class="w-full py-4 bg-[#235338] hover:bg-[#1A3E2A] active:scale-[0.98] text-[#FFFFFF] font-sans font-bold text-xs sm:text-sm rounded-2xl shadow-md flex items-center justify-center gap-2 tracking-wider uppercase transition-all">
+          <svg class="w-5 h-5 text-[#FFFFFF]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          <span>APPROVE & ADD</span>
+        </button>
+
+        <button id="btn-dismiss-current-sms" class="w-full py-2.5 text-center text-xs font-bold text-[#5C6757] hover:text-[#2D332A] uppercase tracking-wider transition-colors font-sans block">
+          DISMISS
+        </button>
+      </div>
+    </div>
+  `;
+
+  openSheet(html);
+
+  document.getElementById('btn-close-sms-sheet')?.addEventListener('click', closeSheet);
+
+  document.getElementById('btn-approve-current-sms')?.addEventListener('click', async () => {
+    const cat = appState.categories[0];
+    const newTx = {
+      id: `tx-${Date.now()}`,
+      type: 'expense',
+      amountMinor: sms.amountMinor,
+      accountId: sms.suggestedAccount || appState.accounts[0]?.id || 'acc-1',
+      toAccountId: null,
+      categoryId: cat ? cat.id : 'cat-1',
+      merchant: sms.merchant || 'Bank Transaction',
+      tags: [],
+      date: new Date().toISOString().split('T')[0],
+      time: new Date().toTimeString().substring(0, 5),
+      note: sms.rawText,
+      receiptBlob: null,
+      source: 'SMS Auto-Detected',
+      splits: [],
+      createdAt: Date.now()
+    };
+    await dbEngine.put('transactions', newTx);
+    await dbEngine.delete('smsQueue', sms.id);
+    await loadStateFromDB();
+    openSMSQueueSheet();
+    renderCurrentTab();
+  });
+
+  document.getElementById('btn-dismiss-current-sms')?.addEventListener('click', async () => {
+    await dbEngine.delete('smsQueue', sms.id);
+    await loadStateFromDB();
+    openSMSQueueSheet();
+    renderCurrentTab();
+  });
+}
+
+// Budget Details Sheet
+function openBudgetDetailsSheet() {
+  const currentMonthStr = new Date().toISOString().substring(0, 7);
+  const catTotals = {};
+  appState.transactions.forEach(t => {
+    if (t.type === 'expense' && t.date.startsWith(currentMonthStr)) {
+      catTotals[t.categoryId] = (catTotals[t.categoryId] || 0) + t.amountMinor;
+    }
+  });
+
+  const html = `
+    <div class="flex items-center justify-between border-b border-[#E5E3DC] pb-3">
+      <div>
+        <h3 class="font-headers text-lg font-bold text-[#2D332A]">Monthly Budget Details</h3>
+        <p class="text-[11px] text-[#7C8079]">Category limits vs actual spending</p>
+      </div>
+      <button id="btn-close-budget-sheet" class="text-[#7C8079] font-sans text-xs font-bold p-1">✕</button>
+    </div>
+    <div class="space-y-3 pt-2 font-sans text-xs max-h-[60vh] overflow-y-auto">
+      ${appState.categories.map(c => {
+        const spent = catTotals[c.id] || 0;
+        const limit = c.monthlyLimitMinor || 0;
+        const pct = limit > 0 ? Math.min(Math.round((spent / limit) * 100), 100) : 0;
+        const isOver = limit > 0 && spent > limit;
+        return `
+          <div class="p-3 bg-[#FAF9F6] border border-[#E5E3DC] rounded-xl space-y-1.5">
+            <div class="flex items-center justify-between font-bold">
+              <span>${c.icon} ${c.name}</span>
+              <span class="num-tabular ${isOver ? 'text-[#D87D56]' : 'text-[#2D332A]'}">${Money.format(spent)} / ${limit > 0 ? Money.format(limit) : 'No Limit'}</span>
+            </div>
+            ${limit > 0 ? `
+              <div class="w-full bg-[#E5E3DC] h-2 rounded-full overflow-hidden">
+                <div class="${isOver ? 'bg-[#D87D56]' : 'bg-[#3B7A57]'} h-full transition-all duration-300 rounded-full" style="width: ${pct}%"></div>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+  openSheet(html);
+  document.getElementById('btn-close-budget-sheet')?.addEventListener('click', closeSheet);
+}
+
+// Create Goal Sheet
+function openCreateGoalSheet() {
+  const html = `
+    <div class="flex items-center justify-between border-b border-[#E5E3DC] pb-3">
+      <h3 class="font-headers text-lg font-bold text-[#2D332A]">Create Savings Goal</h3>
+      <button id="btn-close-goal-sheet" class="text-[#7C8079] font-sans text-xs font-bold p-1">✕</button>
+    </div>
+    <div class="space-y-3 pt-2 font-sans text-xs">
+      <div>
+        <label class="text-[#7C8079] font-bold block mb-1">Goal Name</label>
+        <input type="text" id="goal-in-name" placeholder="e.g. Goa Trip, New Phone" class="w-full bg-[#FAF9F6] border border-[#E5E3DC] rounded-xl p-2.5" />
+      </div>
+      <div>
+        <label class="text-[#7C8079] font-bold block mb-1">Target Amount (₹)</label>
+        <input type="number" id="goal-in-target" placeholder="50000" class="w-full bg-[#FAF9F6] border border-[#E5E3DC] rounded-xl p-2.5" />
+      </div>
+      <div>
+        <label class="text-[#7C8079] font-bold block mb-1">Target Deadline</label>
+        <input type="date" id="goal-in-deadline" class="w-full bg-[#FAF9F6] border border-[#E5E3DC] rounded-xl p-2.5" value="${new Date(Date.now() + 90*24*60*60*1000).toISOString().split('T')[0]}" />
+      </div>
+      <div>
+        <label class="text-[#7C8079] font-bold block mb-1">Choose Icon</label>
+        <select id="goal-in-icon" class="w-full bg-[#FAF9F6] border border-[#E5E3DC] rounded-xl p-2.5">
+          <option value="🏖️">🏖️ Vacation</option>
+          <option value="📱">📱 Tech Gadget</option>
+          <option value="🚗">🚗 Vehicle</option>
+          <option value="🏠">🏠 House / Rent</option>
+          <option value="🎓">🎓 Education</option>
+          <option value="🎯">🎯 General Savings</option>
+        </select>
+      </div>
+      <button id="btn-save-new-goal" class="w-full py-3 bg-[#3B7A57] text-[#FFFFFF] font-bold rounded-xl uppercase shadow-md mt-2">Create Goal</button>
+    </div>
+  `;
+  openSheet(html);
+  document.getElementById('btn-close-goal-sheet')?.addEventListener('click', closeSheet);
+
+  document.getElementById('btn-save-new-goal').addEventListener('click', async () => {
+    const name = document.getElementById('goal-in-name').value.trim();
+    const targetRupees = parseFloat(document.getElementById('goal-in-target').value);
+    const deadline = document.getElementById('goal-in-deadline').value;
+    const icon = document.getElementById('goal-in-icon').value;
+
+    if (!name || isNaN(targetRupees) || targetRupees <= 0) {
+      alert('Please enter a valid goal name and target amount.');
+      return;
+    }
+
+    const newGoal = {
+      id: `goal-${Date.now()}`,
+      name: name,
+      targetAmountMinor: Money.toMinor(targetRupees),
+      currentSavedMinor: 0,
+      deadline: deadline,
+      icon: icon,
+      linkedAccountId: appState.accounts[0]?.id || 'acc-1',
+      status: 'active',
+      contributions: []
+    };
+
+    await dbEngine.put('goals', newGoal);
+    await loadStateFromDB();
+    closeSheet();
+    renderCurrentTab();
+  });
+}
+
+// Filter Bottom Sheet
 function openFiltersSheet() {
   if (!appState.selectedCategoryFilters) appState.selectedCategoryFilters = [];
 
@@ -725,7 +1028,6 @@ function openFiltersSheet() {
   `;
   openSheet(html);
 
-  // Type filter toggle buttons
   document.querySelectorAll('.btn-type-filter').forEach(btn => {
     btn.addEventListener('click', () => {
       appState.currentTxFilter = btn.dataset.typefilter;
@@ -735,7 +1037,6 @@ function openFiltersSheet() {
     });
   });
 
-  // Category pill selection toggle
   document.querySelectorAll('.btn-filter-cat-pill').forEach(pill => {
     pill.addEventListener('click', () => {
       const catId = pill.dataset.catid;
@@ -769,189 +1070,179 @@ function openAddTransactionSheet(type = 'expense') {
   let keypadVal = "0.00";
   let selectedCatId = appState.categories[0]?.id || 'cat-1';
   let selectedAccId = appState.accounts[0]?.id || 'acc-1';
+  let selectedToAccId = appState.accounts[1]?.id || appState.accounts[0]?.id || 'acc-1';
+  let selectedDateVal = new Date().toISOString().split('T')[0];
 
-  const html = `
-    <div class="bg-[#F4F3EF] min-h-[620px] flex flex-col justify-between -m-5 p-6 rounded-t-3xl text-[#2D332A] font-sans fade-in">
-      <div class="flex items-center justify-between border-b border-[#E5E3DC]/60 pb-3">
-        <button id="btn-close-entry" class="text-[#7C8079] hover:text-[#2D332A] text-lg font-bold p-1 w-8 h-8 rounded-full flex items-center justify-center hover:bg-[#E4E8E3] transition-colors">✕</button>
-        <h2 class="font-headers text-xl text-[#2D332A] font-bold tracking-tight">New Entry</h2>
-        <div class="w-8"></div>
-      </div>
-
-      <div class="bg-[#E5E3DC]/60 p-1.5 rounded-full flex items-center shadow-inner my-2">
-        <button id="btn-type-exp" class="flex-1 py-2 text-center rounded-full font-semibold text-xs transition-all bg-[#FFFFFF] text-[#2D332A] shadow-sm">Expense</button>
-        <button id="btn-type-inc" class="flex-1 py-2 text-center rounded-full font-semibold text-xs transition-all text-[#7C8079] hover:text-[#2D332A]">Income</button>
-        <button id="btn-type-trf" class="flex-1 py-2 text-center rounded-full font-semibold text-xs transition-all text-[#7C8079] hover:text-[#2D332A]">Transfer</button>
-      </div>
-
-      <div class="flex justify-center items-center gap-2 my-1">
-        <div class="bg-[#FFFFFF] border border-[#E5E3DC] rounded-full px-3.5 py-1.5 flex items-center gap-1.5 shadow-xs hover:border-[#3B7A57] transition-colors">
-          <span class="text-xs text-[#7C8079]">Account:</span>
-          <select id="entry-acc-select" class="bg-transparent font-sans text-xs font-bold text-[#3B7A57] focus:outline-none cursor-pointer">
-            ${appState.accounts.map(a => `<option value="${a.id}">${a.icon} ${a.name}</option>`).join('')}
-          </select>
+  function renderModalContent() {
+    const html = `
+      <div class="bg-[#F4F3EF] min-h-[620px] flex flex-col justify-between -m-5 p-6 rounded-t-3xl text-[#2D332A] font-sans fade-in">
+        <div class="flex items-center justify-between border-b border-[#E5E3DC]/60 pb-3">
+          <button id="btn-close-entry" class="text-[#7C8079] hover:text-[#2D332A] text-lg font-bold p-1 w-8 h-8 rounded-full flex items-center justify-center hover:bg-[#E4E8E3] transition-colors">✕</button>
+          <h2 class="font-headers text-xl text-[#2D332A] font-bold tracking-tight">New Entry</h2>
+          <div class="w-8"></div>
         </div>
 
-        <div class="bg-[#FFFFFF] border border-[#E5E3DC] rounded-full px-3 py-1.5 flex items-center gap-1.5 shadow-xs hover:border-[#3B7A57] transition-colors">
-          <span class="text-xs text-[#3B7A57]">📅</span>
-          <input type="date" id="entry-date-select" class="bg-transparent font-sans text-xs font-bold text-[#2D332A] focus:outline-none cursor-pointer" value="${new Date().toISOString().split('T')[0]}" />
+        <div class="bg-[#E5E3DC]/60 p-1.5 rounded-full flex items-center shadow-inner my-2">
+          <button id="btn-type-exp" class="flex-1 py-2 text-center rounded-full font-semibold text-xs transition-all ${activeType === 'expense' ? 'bg-[#FFFFFF] text-[#2D332A] shadow-sm' : 'text-[#7C8079]'}">Expense</button>
+          <button id="btn-type-inc" class="flex-1 py-2 text-center rounded-full font-semibold text-xs transition-all ${activeType === 'income' ? 'bg-[#FFFFFF] text-[#2D332A] shadow-sm' : 'text-[#7C8079]'}">Income</button>
+          <button id="btn-type-trf" class="flex-1 py-2 text-center rounded-full font-semibold text-xs transition-all ${activeType === 'transfer' ? 'bg-[#FFFFFF] text-[#2D332A] shadow-sm' : 'text-[#7C8079]'}">Transfer</button>
         </div>
-      </div>
 
-      <div class="text-center my-2 py-1">
-        <div class="text-[11px] text-[#7C8079] font-medium uppercase tracking-wider mb-1">Enter amount</div>
-        <div class="text-3xl font-headers text-[#2D332A] font-bold tracking-tight flex items-center justify-center">
-          <span class="text-xl text-[#3B7A57] mr-1 font-sans">₹</span>
-          <span id="numpad-display-val" class="num-tabular">${keypadVal}</span>
-          <span class="currency-cursor text-[#3B7A57] font-light ml-0.5">|</span>
+        <div class="flex flex-wrap justify-center items-center gap-2 my-1">
+          <div class="bg-[#FFFFFF] border border-[#E5E3DC] rounded-full px-3.5 py-1.5 flex items-center gap-1.5 shadow-xs hover:border-[#3B7A57] transition-colors">
+            <span class="text-xs text-[#7C8079]">${activeType === 'transfer' ? 'From:' : 'Account:'}</span>
+            <select id="entry-acc-select" class="bg-transparent font-sans text-xs font-bold text-[#3B7A57] focus:outline-none cursor-pointer">
+              ${appState.accounts.map(a => `<option value="${a.id}" ${a.id === selectedAccId ? 'selected' : ''}>${a.icon} ${a.name}</option>`).join('')}
+            </select>
+          </div>
+
+          ${activeType === 'transfer' ? `
+            <div class="bg-[#FFFFFF] border border-[#E5E3DC] rounded-full px-3.5 py-1.5 flex items-center gap-1.5 shadow-xs hover:border-[#3B7A57] transition-colors">
+              <span class="text-xs text-[#7C8079]">To:</span>
+              <select id="entry-toacc-select" class="bg-transparent font-sans text-xs font-bold text-[#3B7A57] focus:outline-none cursor-pointer">
+                ${appState.accounts.map(a => `<option value="${a.id}" ${a.id === selectedToAccId ? 'selected' : ''}>${a.icon} ${a.name}</option>`).join('')}
+              </select>
+            </div>
+          ` : ''}
+
+          <div class="bg-[#FFFFFF] border border-[#E5E3DC] rounded-full px-3 py-1.5 flex items-center gap-1.5 shadow-xs hover:border-[#3B7A57] transition-colors">
+            <span class="text-xs text-[#3B7A57]">📅</span>
+            <input type="date" id="entry-date-select" class="bg-transparent font-sans text-xs font-bold text-[#2D332A] focus:outline-none cursor-pointer" value="${selectedDateVal}" />
+          </div>
         </div>
-      </div>
 
-      <div class="my-1">
-        <div class="text-[11px] font-bold text-[#3B7A57] mb-2 px-1 uppercase tracking-wider">Category</div>
-        <div id="category-pills-row" class="flex gap-2 overflow-x-auto pb-1.5 no-scrollbar">
-          ${appState.categories.map((c, idx) => `
-            <button data-catid="${c.id}" class="btn-cat-pill flex-shrink-0 px-4 py-2 rounded-full border text-xs font-semibold flex items-center gap-2 transition-all ${idx === 0 ? 'bg-[#3B7A57] text-[#FFFFFF] border-[#3B7A57] shadow-sm' : 'bg-[#FFFFFF] text-[#2D332A] border-[#E5E3DC] hover:border-[#3B7A57]'}">
-              <span class="text-sm">${c.icon}</span>
-              <span>${c.name}</span>
-            </button>
-          `).join('')}
+        <div class="text-center my-2 py-1">
+          <div class="text-[11px] text-[#7C8079] font-medium uppercase tracking-wider mb-1">Enter amount</div>
+          <div class="text-3xl font-headers text-[#2D332A] font-bold tracking-tight flex items-center justify-center">
+            <span class="text-xl text-[#3B7A57] mr-1 font-sans">₹</span>
+            <span id="numpad-display-val" class="num-tabular">${keypadVal}</span>
+            <span class="currency-cursor text-[#3B7A57] font-light ml-0.5">|</span>
+          </div>
         </div>
-      </div>
 
-      <div class="bg-[#FFFFFF] rounded-3xl p-5 shadow-sm border border-[#E5E3DC]/80 my-2">
-        <div class="grid grid-cols-3 gap-y-4 gap-x-3 text-center font-sans text-2xl font-medium text-[#2D332A]">
-          <button class="btn-num-key py-2.5 rounded-2xl hover:bg-[#F4F3EF] transition-colors" data-key="1">1</button>
-          <button class="btn-num-key py-2.5 rounded-2xl hover:bg-[#F4F3EF] transition-colors" data-key="2">2</button>
-          <button class="btn-num-key py-2.5 rounded-2xl hover:bg-[#F4F3EF] transition-colors" data-key="3">3</button>
+        ${activeType !== 'transfer' ? `
+          <div class="my-1">
+            <div class="text-[11px] font-bold text-[#3B7A57] mb-2 px-1 uppercase tracking-wider">Category</div>
+            <div id="category-pills-row" class="flex gap-2 overflow-x-auto pb-1.5 no-scrollbar">
+              ${appState.categories.map(c => `
+                <button data-catid="${c.id}" class="btn-cat-pill flex-shrink-0 px-4 py-2 rounded-full border text-xs font-semibold flex items-center gap-2 transition-all ${c.id === selectedCatId ? 'bg-[#3B7A57] text-[#FFFFFF] border-[#3B7A57] shadow-sm' : 'bg-[#FFFFFF] text-[#2D332A] border-[#E5E3DC] hover:border-[#3B7A57]'}">
+                  <span class="text-sm">${c.icon}</span>
+                  <span>${c.name}</span>
+                </button>
+              `).join('')}
+            </div>
+          </div>
+        ` : ''}
 
-          <button class="btn-num-key py-2.5 rounded-2xl hover:bg-[#F4F3EF] transition-colors" data-key="4">4</button>
-          <button class="btn-num-key py-2.5 rounded-2xl hover:bg-[#F4F3EF] transition-colors" data-key="5">5</button>
-          <button class="btn-num-key py-2.5 rounded-2xl hover:bg-[#F4F3EF] transition-colors" data-key="6">6</button>
+        <div class="bg-[#FFFFFF] rounded-3xl p-5 shadow-sm border border-[#E5E3DC]/80 my-2">
+          <div class="grid grid-cols-3 gap-y-4 gap-x-3 text-center font-sans text-2xl font-medium text-[#2D332A]">
+            <button class="btn-num-key py-2.5 rounded-2xl hover:bg-[#F4F3EF] transition-colors" data-key="1">1</button>
+            <button class="btn-num-key py-2.5 rounded-2xl hover:bg-[#F4F3EF] transition-colors" data-key="2">2</button>
+            <button class="btn-num-key py-2.5 rounded-2xl hover:bg-[#F4F3EF] transition-colors" data-key="3">3</button>
 
-          <button class="btn-num-key py-2.5 rounded-2xl hover:bg-[#F4F3EF] transition-colors" data-key="7">7</button>
-          <button class="btn-num-key py-2.5 rounded-2xl hover:bg-[#F4F3EF] transition-colors" data-key="8">8</button>
-          <button class="btn-num-key py-2.5 rounded-2xl hover:bg-[#F4F3EF] transition-colors" data-key="9">9</button>
+            <button class="btn-num-key py-2.5 rounded-2xl hover:bg-[#F4F3EF] transition-colors" data-key="4">4</button>
+            <button class="btn-num-key py-2.5 rounded-2xl hover:bg-[#F4F3EF] transition-colors" data-key="5">5</button>
+            <button class="btn-num-key py-2.5 rounded-2xl hover:bg-[#F4F3EF] transition-colors" data-key="6">6</button>
 
-          <button class="btn-num-key py-2.5 rounded-2xl hover:bg-[#F4F3EF] transition-colors" data-key=".">.</button>
-          <button class="btn-num-key py-2.5 rounded-2xl hover:bg-[#F4F3EF] transition-colors" data-key="0">0</button>
-          <button class="btn-num-key py-2.5 rounded-2xl hover:bg-[#F4F3EF] transition-colors text-xl flex items-center justify-center text-[#7C8079]" data-key="del">⌫</button>
+            <button class="btn-num-key py-2.5 rounded-2xl hover:bg-[#F4F3EF] transition-colors" data-key="7">7</button>
+            <button class="btn-num-key py-2.5 rounded-2xl hover:bg-[#F4F3EF] transition-colors" data-key="8">8</button>
+            <button class="btn-num-key py-2.5 rounded-2xl hover:bg-[#F4F3EF] transition-colors" data-key="9">9</button>
+
+            <button class="btn-num-key py-2.5 rounded-2xl hover:bg-[#F4F3EF] transition-colors" data-key=".">.</button>
+            <button class="btn-num-key py-2.5 rounded-2xl hover:bg-[#F4F3EF] transition-colors" data-key="0">0</button>
+            <button class="btn-num-key py-2.5 rounded-2xl hover:bg-[#F4F3EF] transition-colors text-xl flex items-center justify-center text-[#7C8079]" data-key="del">⌫</button>
+          </div>
         </div>
+
+        <div class="bg-[#FFFFFF] rounded-2xl p-3.5 flex items-center gap-2.5 my-1 border border-[#E5E3DC] focus-within:border-[#3B7A57] transition-colors shadow-xs">
+          <span class="text-[#3B7A57] text-sm">✏️</span>
+          <input type="text" id="entry-note-input" placeholder="Add a note (optional)" class="bg-transparent w-full text-xs font-sans text-[#2D332A] focus:outline-none placeholder:text-[#A4A6A1]" />
+        </div>
+
+        <button id="btn-submit-entry" class="w-full py-4 bg-[#3B7A57] text-[#FFFFFF] rounded-full font-sans font-bold text-sm flex items-center justify-center gap-2 shadow-md hover:bg-[#2D332A] active:scale-[0.98] transition-all mt-2">
+          <span>Save Transaction</span>
+          <span class="text-base font-bold">✓</span>
+        </button>
       </div>
+    `;
 
-      <div class="bg-[#FFFFFF] rounded-2xl p-3.5 flex items-center gap-2.5 my-1 border border-[#E5E3DC] focus-within:border-[#3B7A57] transition-colors shadow-xs">
-        <span class="text-[#3B7A57] text-sm">✏️</span>
-        <input type="text" id="entry-note-input" placeholder="Add a note (optional)" class="bg-transparent w-full text-xs font-sans text-[#2D332A] focus:outline-none placeholder:text-[#A4A6A1]" />
-      </div>
+    openSheet(html);
 
-      <button id="btn-submit-entry" class="w-full py-4 bg-[#3B7A57] text-[#FFFFFF] rounded-full font-sans font-bold text-sm flex items-center justify-center gap-2 shadow-md hover:bg-[#2D332A] active:scale-[0.98] transition-all mt-2">
-        <span>Save Transaction</span>
-        <span class="text-base font-bold">✓</span>
-      </button>
-    </div>
-  `;
+    document.getElementById('btn-type-exp')?.addEventListener('click', () => { activeType = 'expense'; renderModalContent(); });
+    document.getElementById('btn-type-inc')?.addEventListener('click', () => { activeType = 'income'; renderModalContent(); });
+    document.getElementById('btn-type-trf')?.addEventListener('click', () => { activeType = 'transfer'; renderModalContent(); });
 
-  openSheet(html);
+    document.getElementById('entry-acc-select')?.addEventListener('change', (e) => { selectedAccId = e.target.value; });
+    document.getElementById('entry-toacc-select')?.addEventListener('change', (e) => { selectedToAccId = e.target.value; });
+    document.getElementById('entry-date-select')?.addEventListener('change', (e) => { selectedDateVal = e.target.value; });
 
-  const btnExp = document.getElementById('btn-type-exp');
-  const btnInc = document.getElementById('btn-type-inc');
-  const btnTrf = document.getElementById('btn-type-trf');
-
-  btnExp.addEventListener('click', () => {
-    activeType = 'expense';
-    btnExp.className = 'flex-1 py-2 text-center rounded-full font-semibold text-xs transition-all bg-[#FFFFFF] text-[#2D332A] shadow-sm';
-    btnInc.className = 'flex-1 py-2 text-center rounded-full font-semibold text-xs transition-all text-[#7C8079] hover:text-[#2D332A]';
-    btnTrf.className = 'flex-1 py-2 text-center rounded-full font-semibold text-xs transition-all text-[#7C8079] hover:text-[#2D332A]';
-  });
-
-  btnInc.addEventListener('click', () => {
-    activeType = 'income';
-    btnInc.className = 'flex-1 py-2 text-center rounded-full font-semibold text-xs transition-all bg-[#FFFFFF] text-[#2D332A] shadow-sm';
-    btnExp.className = 'flex-1 py-2 text-center rounded-full font-semibold text-xs transition-all text-[#7C8079] hover:text-[#2D332A]';
-    btnTrf.className = 'flex-1 py-2 text-center rounded-full font-semibold text-xs transition-all text-[#7C8079] hover:text-[#2D332A]';
-  });
-
-  btnTrf.addEventListener('click', () => {
-    activeType = 'transfer';
-    btnTrf.className = 'flex-1 py-2 text-center rounded-full font-semibold text-xs transition-all bg-[#FFFFFF] text-[#2D332A] shadow-sm';
-    btnExp.className = 'flex-1 py-2 text-center rounded-full font-semibold text-xs transition-all text-[#7C8079] hover:text-[#2D332A]';
-    btnInc.className = 'flex-1 py-2 text-center rounded-full font-semibold text-xs transition-all text-[#7C8079] hover:text-[#2D332A]';
-  });
-
-  document.getElementById('entry-acc-select').addEventListener('change', (e) => {
-    selectedAccId = e.target.value;
-  });
-
-  document.querySelectorAll('.btn-cat-pill').forEach(pill => {
-    pill.addEventListener('click', () => {
-      selectedCatId = pill.dataset.catid;
-      document.querySelectorAll('.btn-cat-pill').forEach(p => {
-        p.className = 'btn-cat-pill flex-shrink-0 px-4 py-2 rounded-full border text-xs font-semibold flex items-center gap-2 transition-all bg-[#FFFFFF] text-[#2D332A] border-[#E5E3DC] hover:border-[#3B7A57]';
+    document.querySelectorAll('.btn-cat-pill').forEach(pill => {
+      pill.addEventListener('click', () => {
+        selectedCatId = pill.dataset.catid;
+        renderModalContent();
       });
-      pill.className = 'btn-cat-pill flex-shrink-0 px-4 py-2 rounded-full border text-xs font-semibold flex items-center gap-2 transition-all bg-[#3B7A57] text-[#FFFFFF] border-[#3B7A57] shadow-sm';
     });
-  });
 
-  const displayEl = document.getElementById('numpad-display-val');
-  document.querySelectorAll('.btn-num-key').forEach(btnKey => {
-    btnKey.addEventListener('click', () => {
-      const key = btnKey.dataset.key;
-      if (key === 'del') {
-        if (keypadVal.length > 1) {
-          keypadVal = keypadVal.slice(0, -1);
+    const displayEl = document.getElementById('numpad-display-val');
+    document.querySelectorAll('.btn-num-key').forEach(btnKey => {
+      btnKey.addEventListener('click', () => {
+        const key = btnKey.dataset.key;
+        if (key === 'del') {
+          if (keypadVal.length > 1) {
+            keypadVal = keypadVal.slice(0, -1);
+            if (keypadVal === '' || keypadVal === '.') keypadVal = '0';
+          } else {
+            keypadVal = "0";
+          }
+        } else if (key === '.') {
+          if (!keypadVal.includes('.')) keypadVal += '.';
         } else {
-          keypadVal = "0.00";
-        }
-      } else if (key === '.') {
-        if (!keypadVal.includes('.')) {
-          keypadVal += '.';
-        }
-      } else {
-        if (keypadVal === "0.00" || keypadVal === "0") {
-          keypadVal = key;
-        } else {
-          if (keypadVal.replace('.', '').length < 8) {
-            keypadVal += key;
+          if (keypadVal === "0.00" || keypadVal === "0") {
+            keypadVal = key;
+          } else {
+            if (keypadVal.replace('.', '').length < 8) keypadVal += key;
           }
         }
-      }
-      displayEl.innerText = keypadVal;
+        if (displayEl) displayEl.innerText = keypadVal;
+      });
     });
-  });
 
-  document.getElementById('btn-close-entry').addEventListener('click', closeSheet);
+    document.getElementById('btn-close-entry')?.addEventListener('click', closeSheet);
 
-  document.getElementById('btn-submit-entry').addEventListener('click', async () => {
-    const amtRupees = parseFloat(keypadVal);
-    if (isNaN(amtRupees) || amtRupees <= 0) return;
+    document.getElementById('btn-submit-entry')?.addEventListener('click', async () => {
+      const amtRupees = parseFloat(keypadVal);
+      if (isNaN(amtRupees) || amtRupees <= 0) return;
 
-    const noteVal = document.getElementById('entry-note-input').value.trim();
-    const customDateVal = document.getElementById('entry-date-select')?.value || new Date().toISOString().split('T')[0];
-    const catObj = appState.categories.find(c => c.id === selectedCatId);
+      const noteVal = document.getElementById('entry-note-input')?.value.trim();
+      const customDateVal = selectedDateVal || new Date().toISOString().split('T')[0];
+      const catObj = appState.categories.find(c => c.id === selectedCatId);
 
-    const newTx = {
-      id: `tx-${Date.now()}`,
-      type: activeType,
-      amountMinor: Money.toMinor(amtRupees),
-      accountId: selectedAccId,
-      toAccountId: null,
-      categoryId: selectedCatId,
-      merchant: noteVal || (catObj ? catObj.name : 'Activity'),
-      tags: [],
-      date: customDateVal,
-      time: new Date().toTimeString().substring(0, 5),
-      note: noteVal,
-      receiptBlob: null,
-      source: 'Manual',
-      splits: [],
-      createdAt: Date.now()
-    };
+      const newTx = {
+        id: `tx-${Date.now()}`,
+        type: activeType,
+        amountMinor: Money.toMinor(amtRupees),
+        accountId: selectedAccId,
+        toAccountId: activeType === 'transfer' ? selectedToAccId : null,
+        categoryId: activeType === 'transfer' ? (appState.categories[0]?.id || 'cat-8') : selectedCatId,
+        merchant: noteVal || (activeType === 'transfer' ? 'Transfer' : (catObj ? catObj.name : 'Activity')),
+        tags: [],
+        date: customDateVal,
+        time: new Date().toTimeString().substring(0, 5),
+        note: noteVal,
+        receiptBlob: null,
+        source: 'Manual',
+        splits: [],
+        createdAt: Date.now()
+      };
 
-    await dbEngine.put('transactions', newTx);
-    await loadStateFromDB();
-    closeSheet();
-    renderCurrentTab();
-  });
+      await dbEngine.put('transactions', newTx);
+      await loadStateFromDB();
+      closeSheet();
+      renderCurrentTab();
+    });
+  }
+
+  renderModalContent();
 }
 
 function openTransactionDetailSheet(txId) {
@@ -964,7 +1255,7 @@ function openTransactionDetailSheet(txId) {
   const html = `
     <div class="flex items-center justify-between border-b border-[#E5E3DC] pb-3">
       <h3 class="font-headers text-lg font-bold text-[#2D332A]">Transaction Details</h3>
-      <button onclick="document.getElementById('sheet-backdrop').classList.add('hidden')" class="text-[#7C8079] font-sans text-xs">[ESC]</button>
+      <button id="btn-close-detail-sheet" class="text-[#7C8079] font-sans text-xs font-bold p-1">✕</button>
     </div>
 
     <div class="text-center py-2">
@@ -996,6 +1287,7 @@ function openTransactionDetailSheet(txId) {
     </button>
   `;
   openSheet(html);
+  document.getElementById('btn-close-detail-sheet')?.addEventListener('click', closeSheet);
 
   document.getElementById('btn-delete-tx').addEventListener('click', async () => {
     if (confirm("Delete this transaction?")) {
@@ -1011,12 +1303,12 @@ function openGoalDetailSheet(goalId) {
   const g = appState.goals.find(goal => goal.id === goalId);
   if (!g) return;
 
-  const pct = Math.min(Math.round((g.currentSavedMinor / g.targetAmountMinor) * 100), 100);
+  const pct = g.targetAmountMinor > 0 ? Math.min(Math.round((g.currentSavedMinor / g.targetAmountMinor) * 100), 100) : 0;
 
   const html = `
     <div class="flex items-center justify-between border-b border-[#E5E3DC] pb-3">
       <h3 class="font-headers text-lg font-bold text-[#2D332A]">${g.name}</h3>
-      <button onclick="document.getElementById('sheet-backdrop').classList.add('hidden')" class="text-[#7C8079] font-sans text-xs">[ESC]</button>
+      <button id="btn-close-goaldetail-sheet" class="text-[#7C8079] font-sans text-xs font-bold p-1">✕</button>
     </div>
 
     <div class="text-center py-2">
@@ -1039,6 +1331,7 @@ function openGoalDetailSheet(goalId) {
     </div>
   `;
   openSheet(html);
+  document.getElementById('btn-close-goaldetail-sheet')?.addEventListener('click', closeSheet);
 
   document.getElementById('btn-deposit-goal').addEventListener('click', async () => {
     const amtRupees = parseFloat(document.getElementById('in-deposit-amt').value);
@@ -1071,13 +1364,32 @@ function openManageAccountsSheet() {
   const html = `
     <div class="flex items-center justify-between border-b border-[#E5E3DC] pb-3">
       <h3 class="font-headers text-lg font-bold text-[#2D332A]">Manage Accounts</h3>
+      <button id="btn-close-accounts-sheet" class="text-[#7C8079] font-sans text-xs font-bold p-1">✕</button>
     </div>
-    <div class="space-y-2 pt-2">
-      ${appState.accounts.map(a => `<div class="p-3 bg-[#FAF9F6] rounded-xl border border-[#E5E3DC] flex justify-between font-sans text-xs"><span>${a.icon} ${a.name} (${a.type})</span></div>`).join('')}
+    <div class="space-y-2 pt-2 max-h-[50vh] overflow-y-auto">
+      ${appState.accounts.map(a => `
+        <div class="p-3 bg-[#FAF9F6] rounded-xl border border-[#E5E3DC] flex justify-between items-center font-sans text-xs">
+          <span>${a.icon} ${a.name} (${a.type})</span>
+          ${appState.accounts.length > 1 ? `<button data-deleteacc="${a.id}" class="btn-del-acc text-[#D87D56] font-bold text-[10px] uppercase hover:underline">Delete</button>` : ''}
+        </div>
+      `).join('')}
     </div>
-    <button id="btn-add-new-acc" class="w-full py-2.5 bg-[#3B7A57] text-[#FFFFFF] font-sans text-xs font-bold rounded-xl uppercase mt-2">+ Add Account</button>
+    <button id="btn-add-new-acc" class="w-full py-2.5 bg-[#3B7A57] text-[#FFFFFF] font-sans text-xs font-bold rounded-xl uppercase mt-3">+ Add Account</button>
   `;
   openSheet(html);
+  document.getElementById('btn-close-accounts-sheet')?.addEventListener('click', closeSheet);
+
+  document.querySelectorAll('.btn-del-acc').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const accId = btn.dataset.deleteacc;
+      if (confirm("Delete this account?")) {
+        await dbEngine.delete('accounts', accId);
+        await loadStateFromDB();
+        openManageAccountsSheet();
+        renderCurrentTab();
+      }
+    });
+  });
 
   document.getElementById('btn-add-new-acc')?.addEventListener('click', () => {
     const addHtml = `
@@ -1125,21 +1437,71 @@ function openManageCategoriesSheet() {
   const html = `
     <div class="flex items-center justify-between border-b border-[#E5E3DC] pb-3">
       <h3 class="font-headers text-lg font-bold text-[#2D332A]">Manage Categories</h3>
+      <button id="btn-close-cat-sheet" class="text-[#7C8079] font-sans text-xs font-bold p-1">✕</button>
     </div>
-    <div class="space-y-2 pt-2">
-      ${appState.categories.map(c => `<div class="p-3 bg-[#FAF9F6] rounded-xl border border-[#E5E3DC] flex justify-between font-sans text-xs"><span>${c.icon} ${c.name}</span><span class="text-[#7C8079] num-tabular">Limit: ${Money.format(c.monthlyLimitMinor)}</span></div>`).join('')}
+    <div class="space-y-2 pt-2 max-h-[50vh] overflow-y-auto">
+      ${appState.categories.map(c => `
+        <div class="p-3 bg-[#FAF9F6] rounded-xl border border-[#E5E3DC] flex justify-between items-center font-sans text-xs">
+          <div class="flex items-center gap-2">
+            <span class="text-base">${c.icon}</span>
+            <span class="font-bold text-[#2D332A]">${c.name}</span>
+          </div>
+          <div class="text-[#7C8079] num-tabular">
+            Limit: ${Money.format(c.monthlyLimitMinor)}
+          </div>
+        </div>
+      `).join('')}
     </div>
+    <button id="btn-add-new-cat" class="w-full py-2.5 bg-[#3B7A57] text-[#FFFFFF] font-sans text-xs font-bold rounded-xl uppercase mt-3">+ Add Category</button>
   `;
   openSheet(html);
+  document.getElementById('btn-close-cat-sheet')?.addEventListener('click', closeSheet);
+
+  document.getElementById('btn-add-new-cat')?.addEventListener('click', () => {
+    const addHtml = `
+      <div class="flex items-center justify-between border-b border-[#E5E3DC] pb-3">
+        <h3 class="font-headers text-lg font-bold text-[#2D332A]">New Category</h3>
+      </div>
+      <div class="space-y-3 pt-2 font-sans text-xs">
+        <input type="text" id="cat-in-name" placeholder="Category Name (e.g. Travel, Fitness)" class="w-full bg-[#FAF9F6] border border-[#E5E3DC] rounded-xl p-2.5" />
+        <input type="text" id="cat-in-icon" placeholder="Emoji Icon (e.g. ✈️)" class="w-full bg-[#FAF9F6] border border-[#E5E3DC] rounded-xl p-2.5" value="📦" />
+        <input type="number" id="cat-in-limit" placeholder="Monthly Limit ₹ (0 for unlimited)" class="w-full bg-[#FAF9F6] border border-[#E5E3DC] rounded-xl p-2.5" />
+        <button id="btn-save-cat" class="w-full py-3 bg-[#3B7A57] text-[#FFFFFF] font-bold rounded-xl uppercase">Create Category</button>
+      </div>
+    `;
+    openSheet(addHtml);
+
+    document.getElementById('btn-save-cat').addEventListener('click', async () => {
+      const name = document.getElementById('cat-in-name').value.trim();
+      const icon = document.getElementById('cat-in-icon').value.trim() || "📦";
+      const limitRupees = parseFloat(document.getElementById('cat-in-limit').value) || 0;
+      if (!name) return;
+
+      const newCat = {
+        id: `cat-${Date.now()}`,
+        name: name,
+        icon: icon,
+        monthlyLimitMinor: Money.toMinor(limitRupees),
+        order: appState.categories.length + 1,
+        archived: false
+      };
+
+      await dbEngine.put('categories', newCat);
+      await loadStateFromDB();
+      closeSheet();
+      renderCurrentTab();
+    });
+  });
 }
 
 function exportCSVLedger() {
+  const escapeCSV = (str) => `"${(str || '').toString().replace(/"/g, '""')}"`;
   let csv = "Date,Time,Type,Amount (INR),Account,Category,Merchant,Notes,Source\n";
   appState.transactions.forEach(t => {
     const acc = appState.accounts.find(a => a.id === t.accountId);
     const cat = appState.categories.find(c => c.id === t.categoryId);
     const amtStr = Money.toMajor(t.amountMinor).toFixed(2);
-    csv += `"${t.date}","${t.time||''}","${t.type}",${amtStr},"${acc?acc.name:''}","${cat?cat.name:''}","${t.merchant||''}","${t.note||''}","${t.source||''}"\n`;
+    csv += `${escapeCSV(t.date)},${escapeCSV(t.time||'')},${escapeCSV(t.type)},${amtStr},${escapeCSV(acc?acc.name:'')},${escapeCSV(cat?cat.name:'')},${escapeCSV(t.merchant||'')},${escapeCSV(t.note||'')},${escapeCSV(t.source||'')}\n`;
   });
 
   const blob = new Blob([csv], { type: 'text/csv' });
@@ -1190,7 +1552,7 @@ function promptPWAInstall() {
   }
 }
 
-// Register Service Worker for PWA (Bypass if running inside Capacitor Native App)
+// Register Service Worker for PWA
 if ('serviceWorker' in navigator && !window.Capacitor) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js').catch(err => console.log('SW registration error:', err));
@@ -1201,18 +1563,16 @@ if ('serviceWorker' in navigator && !window.Capacitor) {
 if (typeof window !== 'undefined') {
   window.addEventListener('DOMContentLoaded', () => {
     if (window.Capacitor && window.Capacitor.Plugins) {
-      // Configure Status Bar
       if (window.Capacitor.Plugins.StatusBar) {
         window.Capacitor.Plugins.StatusBar.setBackgroundColor({ color: '#F4F3EF' }).catch(() => {});
         window.Capacitor.Plugins.StatusBar.setStyle({ style: 'DARK' }).catch(() => {});
       }
 
-      // Configure Back Button Handler
       if (window.Capacitor.Plugins.App) {
         window.Capacitor.Plugins.App.addListener('backButton', () => {
           const sheetBackdrop = document.getElementById('sheet-backdrop');
           if (sheetBackdrop && !sheetBackdrop.classList.contains('hidden')) {
-            Components.closeBottomSheet();
+            closeSheet();
             return;
           }
           if (appState.currentTab !== 'dashboard') {

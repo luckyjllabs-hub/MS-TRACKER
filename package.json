@@ -1,9 +1,11 @@
 {
   "name": "ms-tracker",
   "version": "1.0.0",
-  "description": "",
-  "main": "app.js",
+  "description": "Local-first private personal finance PWA and native Android app",
+  "main": "js/app.js",
   "scripts": {
+    "dev": "npx live-server . --port=8080",
+    "dev:css": "npx tailwindcss -i ./css/input.css -o ./css/style.css --watch",
     "build:css": "npx tailwindcss -i ./css/input.css -o ./css/style.css --minify",
     "build:web": "npm run build:css && node build.js",
     "cap:sync": "npm run build:web && npx cap sync android"
@@ -15,7 +17,7 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
+  "type": "module",
   "bugs": {
     "url": "https://github.com/luckyjllabs-hub/MS-TRACKER/issues"
   },
@@ -23,6 +25,7 @@
   "devDependencies": {
     "@capacitor/cli": "^8.4.2",
     "autoprefixer": "^10.5.4",
+    "live-server": "^1.2.2",
     "postcss": "^8.5.25",
     "tailwindcss": "^3.4.19"
   },
