@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ms-tracker-v1';
+const CACHE_NAME = 'ms-tracker-v9';
 const ASSETS = [
   './',
   './index.html',

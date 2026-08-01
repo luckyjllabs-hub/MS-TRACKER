@@ -201,13 +201,13 @@ function setupEventListeners() {
 
   // Dashboard Shortcuts
   document.getElementById('btn-sms-queue-shortcut')?.addEventListener('click', openSMSQueueSheet);
+  document.getElementById('btn-hero-inbox')?.addEventListener('click', openSMSQueueSheet);
+  document.getElementById('btn-hero-add')?.addEventListener('click', () => openAddTransactionSheet('expense'));
+  document.getElementById('btn-hero-transfer')?.addEventListener('click', () => openAddTransactionSheet('transfer'));
   document.getElementById('btn-budget-details')?.addEventListener('click', openBudgetDetailsSheet);
   document.getElementById('btn-manage-accounts')?.addEventListener('click', openManageAccountsSheet);
   document.getElementById('btn-view-full-ledger')?.addEventListener('click', () => switchTab('transactions'));
   document.getElementById('btn-create-goal')?.addEventListener('click', openCreateGoalSheet);
-  // Net Worth Chart Toggle & Eye Privacy Mask
-  document.getElementById('btn-toggle-networth-chart')?.addEventListener('click', toggleNetWorthChartView);
-  document.getElementById('btn-toggle-eye')?.addEventListener('click', togglePrivacyMask);
 
   // Filter Button Shortcut on Transactions Screen
   document.getElementById('btn-open-filters')?.addEventListener('click', openFiltersSheet);
@@ -247,7 +247,7 @@ function switchTab(tabId) {
 
   document.querySelectorAll('.nav-tab-btn').forEach(btn => {
     if (btn.dataset.tab === tabId) {
-      btn.className = 'nav-tab-btn flex-1 h-full flex flex-col items-center justify-center text-[#3B7A57] font-bold';
+      btn.className = 'nav-tab-btn flex-1 h-full flex flex-col items-center justify-center text-[#1B4332] font-bold';
     } else {
       btn.className = 'nav-tab-btn flex-1 h-full flex flex-col items-center justify-center text-[#7C8079] font-medium';
     }
@@ -264,7 +264,7 @@ function renderCurrentTab() {
   else if (appState.currentTab === 'settings') renderSettingsView();
 }
 
-// 1. Render Dashboard (Visual Overview Overhaul)
+// 1. Render Dashboard (Emerald Net Worth Hero)
 function renderDashboardView() {
   let netWorthMinor = 0;
   let monthIncMinor = 0;
@@ -292,60 +292,123 @@ function renderDashboardView() {
     }
   });
 
-  const isNetWorthNegative = netWorthMinor < 0;
+  // Time-based greeting (placeholder name until onboarding exists)
+  const hour = new Date().getHours();
+  const period = hour < 12 ? 'Morning' : hour < 17 ? 'Afternoon' : 'Evening';
+  const greetingPeriodEl = document.getElementById('dash-greeting-period');
+  const greetingNameEl = document.getElementById('dash-greeting-name');
+  if (greetingPeriodEl) greetingPeriodEl.textContent = `Good ${period},`;
+  if (greetingNameEl) greetingNameEl.textContent = 'User';
 
-  // Render Net Worth Value & Growth styling
+  // Net worth amount (always white on emerald glass)
   const netWorthValEl = document.getElementById('dash-networth-val');
-  netWorthValEl.innerText = isPrivacyMasked ? "••••••••" : Money.format(netWorthMinor);
-  netWorthValEl.className = isNetWorthNegative
-    ? 'font-headers text-3xl sm:text-4xl font-bold tracking-tight text-[#D87D56] num-tabular'
-    : 'font-headers text-3xl sm:text-4xl font-bold tracking-tight text-[#2D332A] num-tabular';
+  if (netWorthValEl) {
+    netWorthValEl.textContent = isPrivacyMasked ? '••••••••' : Money.format(netWorthMinor);
+    netWorthValEl.className = 'font-sans text-[42px] font-bold tracking-tight text-white num-tabular leading-none mb-5';
+  }
 
-  // Mirrored Trend Line Graph for Negative Net Worth
-  renderNetWorthTrendGraph(isNetWorthNegative);
+  // Month-over-month change pill vs end of previous calendar month
+  renderNetWorthMomChange(netWorthMinor);
 
-  document.getElementById('dash-income-val').innerText = `+${Money.format(monthIncMinor)}`;
-  document.getElementById('dash-expense-val').innerText = `-${Money.format(monthExpMinor)}`;
-
-  // Populate Accounts Carousel
+  // Populate Accounts Carousel (settings screen)
   populateAccountsCarousel(accountBalances);
 
-  // Render Pictorial Spending Donut Breakdown & Net Worth Pie Chart
-  renderOverviewDonutChart(monthExpMinor);
-  renderNetWorthPieChart(monthIncMinor, monthExpMinor);
+  // Clean Category Spending
+  renderCleanCategorySpending();
 
-  // Monthly Budget Gauge
-  const spentMinor = monthExpMinor;
+  // Financial Health gauge — current-month spend vs total category limits
+  const currentMonthStr = new Date().toISOString().substring(0, 7);
+  let monthSpentForHealth = 0;
+  appState.transactions.forEach(t => {
+    if (t.type === 'expense' && t.date.startsWith(currentMonthStr)) {
+      monthSpentForHealth += t.amountMinor;
+    }
+  });
   const totalBudgetMinor = appState.categories.reduce((sum, c) => sum + (c.monthlyLimitMinor || 0), 0);
-  const pct = totalBudgetMinor > 0 ? Math.min((spentMinor / totalBudgetMinor) * 100, 100) : 0;
-
-  document.getElementById('dash-spent-val').innerText = Money.format(spentMinor);
-  document.getElementById('dash-limit-val').innerText = `of ${Money.format(totalBudgetMinor)} Limit`;
-  document.getElementById('dash-budget-progress-bar').style.width = `${pct}%`;
+  renderFinancialHealthGauge(monthSpentForHealth, totalBudgetMinor);
 
   // Recent Transactions List
   const recentList = document.getElementById('dash-recent-tx-list');
-  recentList.innerHTML = '';
+  if (recentList) {
+    recentList.innerHTML = '';
 
-  const sortedTx = [...appState.transactions].sort((a, b) => {
-    const dateComp = b.date.localeCompare(a.date);
-    if (dateComp !== 0) return dateComp;
-    const timeComp = (b.time || '').localeCompare(a.time || '');
-    if (timeComp !== 0) return timeComp;
-    return (b.createdAt || 0) - (a.createdAt || 0);
+    const sortedTx = [...appState.transactions].sort((a, b) => {
+      const dateComp = b.date.localeCompare(a.date);
+      if (dateComp !== 0) return dateComp;
+      const timeComp = (b.time || '').localeCompare(a.time || '');
+      if (timeComp !== 0) return timeComp;
+      return (b.createdAt || 0) - (a.createdAt || 0);
+    });
+
+    sortedTx.slice(0, 5).forEach(tx => {
+      const acc = appState.accounts.find(a => a.id === tx.accountId);
+      const cat = appState.categories.find(c => c.id === tx.categoryId);
+      recentList.insertAdjacentHTML('beforeend', Components.TransactionRow(tx, acc ? acc.name : '', cat ? cat.icon : '', cat ? cat.name : 'Uncategorized'));
+    });
+
+    document.querySelectorAll('#dash-recent-tx-list [data-txid]').forEach(row => {
+      row.addEventListener('click', () => openTransactionDetailSheet(row.dataset.txid));
+    });
+  }
+
+  const badge = document.getElementById('badge-sms-count');
+  if (badge) badge.innerText = appState.smsQueue.length;
+}
+
+/** Net worth as of end of previous calendar month (replay ledger through that date). */
+function computeNetWorthAsOf(endDateStr) {
+  const balances = {};
+  appState.accounts.forEach(a => { balances[a.id] = a.startingBalanceMinor || 0; });
+
+  appState.transactions.forEach(tx => {
+    if (!tx.date || tx.date > endDateStr) return;
+    if (tx.type === 'expense') {
+      if (balances[tx.accountId] !== undefined) balances[tx.accountId] -= tx.amountMinor;
+    } else if (tx.type === 'income') {
+      if (balances[tx.accountId] !== undefined) balances[tx.accountId] += tx.amountMinor;
+    } else if (tx.type === 'transfer') {
+      if (balances[tx.accountId] !== undefined) balances[tx.accountId] -= tx.amountMinor;
+      if (balances[tx.toAccountId] !== undefined) balances[tx.toAccountId] += tx.amountMinor;
+    }
   });
 
-  sortedTx.slice(0, 5).forEach(tx => {
-    const acc = appState.accounts.find(a => a.id === tx.accountId);
-    const cat = appState.categories.find(c => c.id === tx.categoryId);
-    recentList.insertAdjacentHTML('beforeend', Components.TransactionRow(tx, acc ? acc.name : '', cat ? cat.icon : '', cat ? cat.name : 'Uncategorized'));
+  let total = 0;
+  appState.accounts.forEach(a => {
+    if (a.includeInNetWorth && !a.archived) total += balances[a.id] || 0;
   });
+  return total;
+}
 
-  document.querySelectorAll('#dash-recent-tx-list [data-txid]').forEach(row => {
-    row.addEventListener('click', () => openTransactionDetailSheet(row.dataset.txid));
-  });
+function renderNetWorthMomChange(currentNetWorthMinor) {
+  const el = document.getElementById('dash-networth-change');
+  if (!el) return;
 
-  document.getElementById('badge-sms-count').innerText = appState.smsQueue.length;
+  const now = new Date();
+  // Last day of previous calendar month
+  const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+  const y = prevMonthEnd.getFullYear();
+  const m = String(prevMonthEnd.getMonth() + 1).padStart(2, '0');
+  const d = String(prevMonthEnd.getDate()).padStart(2, '0');
+  const baseline = computeNetWorthAsOf(`${y}-${m}-${d}`);
+
+  let label = '0.0%';
+  let positive = true;
+
+  if (Math.abs(baseline) > 0) {
+    const pct = ((currentNetWorthMinor - baseline) / Math.abs(baseline)) * 100;
+    positive = pct >= 0;
+    const abs = Math.abs(pct).toFixed(1);
+    label = `${positive ? '+' : '-'}${abs}%`;
+  } else if (currentNetWorthMinor !== 0) {
+    // No prior baseline — treat any current value as full change vs zero
+    positive = currentNetWorthMinor > 0;
+    label = positive ? '+100.0%' : '-100.0%';
+  }
+
+  el.textContent = label;
+  el.className = positive
+    ? 'font-sans text-[12px] font-bold num-tabular px-2.5 py-1 rounded-full bg-black/40 text-[#34D399]'
+    : 'font-sans text-[12px] font-bold num-tabular px-2.5 py-1 rounded-full bg-black/40 text-[#F87171]';
 }
 
 // Render Net Worth Trend Line Graph
@@ -376,66 +439,133 @@ function renderNetWorthTrendGraph(isNegative = false) {
   `;
 }
 
-// Pictorial Donut Generator for Overview
-function renderOverviewDonutChart(totalExpenseMinor) {
-  const svg = document.getElementById('dash-overview-donut-svg');
-  const legend = document.getElementById('dash-overview-legend-pills');
-  if (!svg || !legend) return;
+// Financial Health — semicircular remaining-budget gauge
+// Remaining = (1 − spent/limit) × 100. Over budget shows overage %.
+function renderFinancialHealthGauge(spentMinor, totalBudgetMinor) {
+  const svg = document.getElementById('dash-health-gauge-svg');
+  if (!svg) return;
 
-  const currentMonthStr = new Date().toISOString().substring(0, 7);
-  const catTotals = {};
+  const GREEN = '#1B4332';
+  const TRACK = '#E9E7DF';
+  const TICK = '#52B788';
+  const cx = 140;
+  const cy = 138;
+  const r = 100;
+  const strokeW = 18;
+  const arcPath = `M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`;
+  const arcLen = Math.PI * r;
+
+  let displayPct = 100;
+  let fillPct = 100;
+  let arcColor = GREEN;
+  let label = 'Budget Safe';
+  let pctColor = '#1A1A1A';
+
+  if (totalBudgetMinor <= 0) {
+    if (spentMinor > 0) {
+      displayPct = 0;
+      fillPct = 0;
+      arcColor = '#B5443C';
+      label = 'No Limit Set';
+      pctColor = '#B5443C';
+    }
+  } else if (spentMinor > totalBudgetMinor) {
+    displayPct = Math.round(((spentMinor - totalBudgetMinor) / totalBudgetMinor) * 100);
+    fillPct = 0;
+    arcColor = '#B5443C';
+    label = 'Over Budget';
+    pctColor = '#B5443C';
+  } else {
+    const remaining = (1 - spentMinor / totalBudgetMinor) * 100;
+    displayPct = Math.round(remaining);
+    fillPct = remaining;
+    if (displayPct >= 50) { arcColor = GREEN; label = 'Budget Safe'; }
+    else if (displayPct >= 25) { arcColor = '#C4A574'; label = 'Budget Tight'; }
+    else { arcColor = '#D87D56'; label = 'Budget Risky'; }
+  }
+
+  const filled = (fillPct / 100) * arcLen;
+
+  let tick = '';
+  if (fillPct > 1 && fillPct < 99) {
+    const angle = Math.PI * (1 - fillPct / 100);
+    const mx = cx + r * Math.cos(angle);
+    const my = cy - r * Math.sin(angle);
+    const nx = Math.cos(angle);
+    const ny = -Math.sin(angle);
+    tick = `<line x1="${mx - nx * 8}" y1="${my - ny * 8}" x2="${mx + nx * 8}" y2="${my + ny * 8}" stroke="${TICK}" stroke-width="3.5" stroke-linecap="round"/>`;
+  }
+
+  // Labels live inside the SVG so they sit in the bowl of the arc — never overlapping it.
+  svg.innerHTML = `
+    <path d="${arcPath}" fill="none" stroke="${TRACK}" stroke-width="${strokeW}" stroke-linecap="round"/>
+    <path d="${arcPath}" fill="none" stroke="${arcColor}" stroke-width="${strokeW}" stroke-linecap="round"
+      stroke-dasharray="${filled} ${arcLen}" style="transition: stroke-dasharray 400ms ease;"/>
+    ${tick}
+    <text x="${cx}" y="98" text-anchor="middle" fill="${pctColor}"
+      font-family="Fraunces, Georgia, serif" font-size="36" font-weight="700"
+      style="font-variant-numeric: tabular-nums;">${displayPct}%</text>
+    <text x="${cx}" y="122" text-anchor="middle" fill="#8A8A84"
+      font-family="DM Sans, system-ui, sans-serif" font-size="13" font-weight="500">${label}</text>
+  `;
+}
+
+// Clean Category Spending — top categories this month (bars vs largest)
+// Inline styles used so layout never depends on a stale Tailwind build.
+function renderCleanCategorySpending() {
+  const list = document.getElementById('dash-clean-category-list');
+  if (!list) return;
+
+  const month = new Date().toISOString().substring(0, 7);
+  const totals = {};
 
   appState.transactions.forEach(t => {
-    if (t.type === 'expense' && t.date.startsWith(currentMonthStr)) {
-      catTotals[t.categoryId] = (catTotals[t.categoryId] || 0) + t.amountMinor;
+    if (t.type === 'expense' && t.date.startsWith(month)) {
+      totals[t.categoryId] = (totals[t.categoryId] || 0) + t.amountMinor;
     }
   });
 
-  const catItems = Object.keys(catTotals).map(catId => {
-    const cat = appState.categories.find(c => c.id === catId);
+  const items = Object.keys(totals).map(id => {
+    const cat = appState.categories.find(c => c.id === id);
     return {
-      id: catId,
-      name: cat ? cat.name : 'Other',
-      icon: cat ? cat.icon : '📦',
-      amountMinor: catTotals[catId]
+      name: cat?.name || 'Other',
+      icon: cat?.icon || '📦',
+      amountMinor: totals[id]
     };
   }).sort((a, b) => b.amountMinor - a.amountMinor);
 
-  if (catItems.length === 0) {
-    svg.innerHTML = `<circle cx="50" cy="50" r="40" stroke="#E5E3DC" stroke-width="12" fill="none"/>`;
-    legend.innerHTML = `<div class="text-[#7C8079] text-xs font-sans">No spending recorded this month</div>`;
+  if (items.length === 0) {
+    list.innerHTML = `<p style="color:#8A8A84;font-size:14px;font-family:DM Sans,system-ui,sans-serif;margin:0;">No spending recorded this month</p>`;
     return;
   }
 
-  const colors = ['#3B7A57', '#D87D56', '#8F9C8A', '#D8A47F', '#5C6757', '#94A3B8'];
-  let strokeDashoffset = 0;
-  const radius = 40;
-  const circumference = 2 * Math.PI * radius;
+  const palette = [
+    { bar: '#1B4332', bg: '#D8F3DC' },
+    { bar: '#7C3AED', bg: '#EDE4FF' },
+    { bar: '#E07A3D', bg: '#FFE8D6' },
+    { bar: '#2563EB', bg: '#DBEAFE' },
+    { bar: '#B45309', bg: '#FEF3C7' },
+  ];
+  const max = items[0].amountMinor || 1;
 
-  let svgPaths = '';
-  let legendHtml = '';
-
-  catItems.slice(0, 3).forEach((item, idx) => {
-    const pct = item.amountMinor / totalExpenseMinor;
-    const strokeDasharray = `${pct * circumference} ${circumference}`;
-    const strokeColor = colors[idx % colors.length];
-
-    svgPaths += `<circle cx="50" cy="50" r="${radius}" stroke="${strokeColor}" stroke-width="12" fill="none" stroke-dasharray="${strokeDasharray}" stroke-dashoffset="${-strokeDashoffset}"/>`;
-    strokeDashoffset += pct * circumference;
-
-    legendHtml += `
-      <div class="flex items-center justify-between">
-        <div class="flex items-center gap-2">
-          <span class="w-2.5 h-2.5 rounded-full" style="background-color: ${strokeColor}"></span>
-          <span class="font-semibold text-[#2D332A] truncate max-w-[90px]">${item.icon} ${item.name}</span>
+  list.innerHTML = items.slice(0, 2).map((item, i) => {
+    const c = palette[i % palette.length];
+    const pct = Math.max(4, (item.amountMinor / max) * 100);
+    const mb = i < Math.min(items.length, 2) - 1 ? '18px' : '0';
+    return `
+      <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:${mb};">
+        <span style="width:32px;height:32px;border-radius:10px;background:${c.bg};display:inline-flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;">${item.icon}</span>
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
+            <span style="font-family:DM Sans,system-ui,sans-serif;font-weight:500;font-size:15px;color:#1A1A1A;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${item.name}</span>
+            <span style="font-family:DM Sans,system-ui,sans-serif;font-weight:700;font-size:15px;color:#1A1A1A;font-variant-numeric:tabular-nums;flex-shrink:0;">${Money.format(item.amountMinor)}</span>
+          </div>
+          <div style="width:100%;height:10px;border-radius:999px;background:${c.bg};overflow:hidden;">
+            <div style="height:100%;width:${pct}%;border-radius:999px;background:${c.bar};transition:width 400ms ease;"></div>
+          </div>
         </div>
-        <span class="font-bold text-[#2D332A] num-tabular">${Money.format(item.amountMinor)}</span>
-      </div>
-    `;
-  });
-
-  svg.innerHTML = svgPaths;
-  legend.innerHTML = legendHtml;
+      </div>`;
+  }).join('');
 }
 
 // Toggle Privacy Mask for Sensitive Net Worth Amounts
@@ -735,32 +865,43 @@ function closeSheet() {
 function openSMSQueueSheet() {
   const queue = appState.smsQueue || [];
 
+  const headerRow = (countBadgeHtml = '') => `
+    <div class="sms-emerald-header flex items-center justify-between px-5 py-4">
+      <div class="flex items-center gap-2.5 min-w-0">
+        <svg class="w-5 h-5 text-white flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+        <h3 class="font-headers text-xl font-bold text-white tracking-tight">Smart Inbox</h3>
+        ${countBadgeHtml}
+      </div>
+      <button id="btn-close-sms-sheet" class="text-white/70 hover:text-white p-1.5 rounded-full hover:bg-white/10 transition-colors flex-shrink-0" aria-label="Close">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+  `;
+
+  const styleSmsSheet = () => {
+    const area = document.getElementById('sheet-content-area');
+    if (!area) return;
+    area.className = 'sms-emerald-sheet w-full max-w-[370px] rounded-[32px] max-h-[90vh] overflow-y-auto no-scrollbar';
+  };
+
   if (queue.length === 0) {
     const emptyHtml = `
-      <div class="text-[#2D332A] font-sans text-center space-y-4 fade-in">
-        <div class="flex items-center justify-between border-b border-[#E5E3DC]/80 pb-4 mb-2">
-          <div class="flex items-center gap-2.5">
-            <svg class="w-5 h-5 text-[#235338]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-            <h3 class="font-headers text-xl font-bold text-[#2D332A]">Smart Inbox</h3>
-          </div>
-          <button id="btn-close-sms-sheet" class="text-[#5C6757] hover:text-[#2D332A] p-1.5 rounded-full hover:bg-[#E5E3DC]/40 transition-colors">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-          </button>
-        </div>
-
-        <div class="py-6 space-y-3">
-          <div class="w-16 h-16 rounded-full bg-[#EBF2EB] border border-[#D5E3D5] flex items-center justify-center text-[#235338] text-2xl mx-auto shadow-xs">
+      <div class="font-sans fade-in">
+        ${headerRow()}
+        <div class="px-6 py-8 text-center space-y-3">
+          <div class="w-16 h-16 rounded-full bg-[#F0EEE8] border border-[#E5E3DC] flex items-center justify-center text-2xl mx-auto">
             📬
           </div>
-          <h4 class="font-headers text-xl font-bold text-[#2D332A]">Smart Inbox Clear</h4>
+          <h4 class="font-headers text-xl font-bold text-[#0B2A1F]">Smart Inbox Clear</h4>
           <p class="text-xs text-[#7C8079] max-w-xs mx-auto">No pending banking SMS notifications to parse right now.</p>
-          <button id="btn-reseed-sms" class="mt-3 px-4 py-2 bg-[#235338] text-[#FFFFFF] font-sans text-xs font-bold rounded-xl shadow-xs uppercase tracking-wider hover:bg-[#1A3E2A] transition-colors">
+          <button id="btn-reseed-sms" class="mt-3 px-5 py-2.5 bg-[#34D399] hover:bg-[#2ECC71] text-white font-sans text-xs font-bold rounded-xl shadow-sm uppercase tracking-wider transition-colors">
             Load Example Stacked SMS
           </button>
         </div>
       </div>
     `;
     openSheet(emptyHtml, true);
+    styleSmsSheet();
     document.getElementById('btn-close-sms-sheet')?.addEventListener('click', closeSheet);
     document.getElementById('btn-reseed-sms')?.addEventListener('click', async () => {
       const defaultSmsList = [
@@ -777,7 +918,9 @@ function openSMSQueueSheet() {
   }
 
   const sms = queue[0];
-  const countBadge = queue.length > 1 ? `<span class="text-[11px] font-sans text-[#7C8079] bg-[#FAF9F6] px-2.5 py-0.5 rounded-full border border-[#E5E3DC]">1 of ${queue.length}</span>` : '';
+  const countBadge = queue.length > 1
+    ? `<span class="text-[11px] font-sans text-white/80 bg-white/10 px-2.5 py-0.5 rounded-full border border-white/15">1 of ${queue.length}</span>`
+    : '';
   const matchingAcc = appState.accounts.find(a => a.id === sms.suggestedAccount) || appState.accounts[0];
   const accLabel = sms.bank || (matchingAcc ? matchingAcc.name : 'HDFC');
 
@@ -791,63 +934,56 @@ function openSMSQueueSheet() {
   else heroIcon = '📦';
 
   const html = `
-    <div class="text-[#2D332A] font-sans space-y-4 fade-in">
-      <!-- Header -->
-      <div class="flex items-center justify-between border-b border-[#E5E3DC]/80 pb-4 mb-2">
-        <div class="flex items-center gap-2.5">
-          <svg class="w-5 h-5 text-[#235338]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-          <h3 class="font-headers text-xl font-bold text-[#2D332A] tracking-tight">Smart Inbox</h3>
-          ${countBadge}
-        </div>
-        <button id="btn-close-sms-sheet" class="text-[#5C6757] hover:text-[#2D332A] p-1.5 rounded-full hover:bg-[#E5E3DC]/40 transition-colors">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-        </button>
-      </div>
+    <div class="font-sans fade-in">
+      ${headerRow(countBadge)}
 
-      <!-- Hero Merchant Card -->
-      <div class="text-center pt-2">
-        <div class="w-16 h-16 rounded-full bg-[#EBF2EB] border border-[#D5E3D5] flex items-center justify-center text-[#235338] text-2xl mx-auto mb-3 shadow-xs">
-          ${heroIcon}
-        </div>
+      <div class="px-6 pt-5 pb-6 space-y-4">
+        <!-- Merchant -->
+        <div class="text-center">
+          <div class="w-16 h-16 rounded-full bg-[#F0EEE8] border border-[#E5E3DC] flex items-center justify-center text-2xl mx-auto mb-3">
+            ${heroIcon}
+          </div>
 
-        <h2 class="font-headers text-2xl font-bold text-[#2D332A] tracking-tight">${sms.merchant || 'Activity'}</h2>
+          <h2 class="font-headers text-2xl font-bold text-[#0B2A1F] tracking-tight">${sms.merchant || 'Activity'}</h2>
 
-        <div class="flex justify-center my-2">
-          <span class="bg-[#E8F3EB] border border-[#D5E3D5] text-[#235338] text-[11px] font-semibold px-3 py-1 rounded-full flex items-center gap-1.5 shadow-2xs">
-            <svg class="w-3.5 h-3.5 text-[#235338]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
-            <span>${sms.confidence || 'High Confidence'}</span>
-          </span>
-        </div>
+          <div class="flex justify-center my-2">
+            <span class="bg-[#0B2A1F] text-white text-[11px] font-semibold px-3 py-1 rounded-full flex items-center gap-1.5">
+              <svg class="w-3.5 h-3.5 text-[#34D399]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+              <span>${sms.confidence || 'High Confidence'}</span>
+            </span>
+          </div>
 
-        <div class="my-3">
-          <span class="font-sans text-4xl sm:text-5xl font-bold text-[#235338] tracking-tight num-tabular">${Money.format(sms.amountMinor)}</span>
+          <div class="my-3">
+            <span class="font-sans text-4xl sm:text-5xl font-bold text-[#0B2A1F] tracking-tight num-tabular">${Money.format(sms.amountMinor)}</span>
+          </div>
+
+          <div class="flex justify-center mb-1">
+            <span class="bg-[#F0EEE8] border border-[#E5E3DC] text-[#0B2A1F] text-xs font-bold px-3.5 py-1.5 rounded-full">${accLabel} - Card 1234</span>
+          </div>
         </div>
 
-        <div class="flex justify-center mb-4">
-          <span class="bg-[#DCEAE0] text-[#235338] text-xs font-bold px-3.5 py-1.5 rounded-full shadow-2xs">${accLabel} - Card 1234</span>
+        <!-- Raw SMS -->
+        <div class="bg-[#F0EEE8]/80 border border-[#E5E3DC] rounded-2xl p-4 text-center text-xs text-[#5C6757] leading-relaxed font-sans">
+          "${sms.rawText || ''}"
         </div>
-      </div>
 
-      <!-- Raw SMS Content Box -->
-      <div class="bg-[#F7F7F5] border border-[#DDE2DC] rounded-2xl p-4 text-center text-xs text-[#5C6757] leading-relaxed my-3 font-sans shadow-inner">
-        "${sms.rawText || ''}"
-      </div>
+        <!-- Actions -->
+        <div class="pt-1 space-y-2">
+          <button id="btn-approve-current-sms" class="w-full py-4 bg-[#34D399] hover:bg-[#2ECC71] active:scale-[0.98] text-white font-sans font-bold text-xs sm:text-sm rounded-2xl shadow-md flex items-center justify-center gap-2 tracking-wider uppercase transition-all">
+            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <span>APPROVE & ADD</span>
+          </button>
 
-      <!-- Actions -->
-      <div class="pt-2 space-y-2">
-        <button id="btn-approve-current-sms" class="w-full py-4 bg-[#235338] hover:bg-[#1A3E2A] active:scale-[0.98] text-[#FFFFFF] font-sans font-bold text-xs sm:text-sm rounded-2xl shadow-md flex items-center justify-center gap-2 tracking-wider uppercase transition-all">
-          <svg class="w-5 h-5 text-[#FFFFFF]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-          <span>APPROVE & ADD</span>
-        </button>
-
-        <button id="btn-dismiss-current-sms" class="w-full py-2.5 text-center text-xs font-bold text-[#5C6757] hover:text-[#2D332A] uppercase tracking-wider transition-colors font-sans block">
-          DISMISS
-        </button>
+          <button id="btn-dismiss-current-sms" class="w-full py-2.5 text-center text-xs font-bold text-[#7C8079] hover:text-[#0B2A1F] uppercase tracking-wider transition-colors font-sans block">
+            DISMISS
+          </button>
+        </div>
       </div>
     </div>
   `;
 
   openSheet(html, true);
+  styleSmsSheet();
 
   document.getElementById('btn-close-sms-sheet')?.addEventListener('click', closeSheet);
 
