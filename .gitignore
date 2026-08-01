@@ -1,25 +1,15 @@
-# Dependencies
-node_modules/
-
-# Capacitor generated web assets
-www/
-
-# Android build output
-android/.gradle/
-android/build/
-android/app/build/
-
-# Local Android SDK config
-android/local.properties
-
-# IDE files
-.idea/
-.vscode/
-
-# Logs
-*.log
-npm-debug.log*
-
-# OS files
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
 .DS_Store
-Thumbs.db
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
