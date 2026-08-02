@@ -86,4 +86,24 @@ class RealSmsClassificationRegressionTest {
         assertEquals(SmsProcessingStatus.SUCCESS, result.status)
         assertEquals("cat-3", result.categoryId)
     }
+
+    @Test
+    fun `HDFC Received IMPS is income credit`() {
+        val body = """
+            Received!
+            INR 12,181.00 in HDFC Bank A/c xx0328
+            On 02-08-26
+            For IMPS -AMITKUMAR- 621415757925
+            Avl bal INR 10,09,205.48
+        """.trimIndent()
+        val result = SmsProcessingPipeline.process(
+            sender = "VM-HDFCBK-S",
+            body = body,
+            timestamp = System.currentTimeMillis()
+        )
+        assertEquals(SmsProcessingStatus.SUCCESS, result.status)
+        assertEquals(com.example.mstrackerapp.domain.models.TransactionType.INCOME, result.transactionType)
+        assertEquals(1218100L, result.amountMinor)
+        assertTrue(result.merchant.contains("Amitkumar", ignoreCase = true))
+    }
 }

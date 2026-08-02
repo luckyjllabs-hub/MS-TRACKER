@@ -58,4 +58,17 @@ class NonTransactionAlertFilterTest {
         val body = "Update! INR 5,279.00 deposited in HDFC Bank A/c XX0328 on 30-JUN-26 for Interest paid till 30-JUN-2026.Avl bal INR 7,45,056.48."
         assertFalse(NonTransactionAlertFilter.isNonTransactionAlert(body))
     }
+
+    @Test
+    fun `HDFC Received IMPS credit is a transaction`() {
+        val body = """
+            Received!
+            INR 12,181.00 in HDFC Bank A/c xx0328
+            On 02-08-26
+            For IMPS -AMITKUMAR- 621415757925
+            Avl bal INR 10,09,205.48
+        """.trimIndent()
+        assertFalse(NonTransactionAlertFilter.isNonTransactionAlert(body))
+        assertTrue(SuccessDetector.isSuccessful(body))
+    }
 }

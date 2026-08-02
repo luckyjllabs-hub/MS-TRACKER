@@ -2,9 +2,9 @@ package com.example.mstrackerapp.parser.stage5
 
 object AmountParser {
 
-    // Verb + amount: "debited for Rs 1,200.50", "credited with Rs 500.00", "paid Rs 200"
+    // Verb + amount, including HDFC "Received!\nINR 12,181.00"
     private val VERB_AMOUNT = Regex(
-        """(?i)\b(?:debited|credited|spent|sent|paid|transferred|withdrawn|received|deposited|deducted)\s+(?:for|by|of|with|is|on|to|in|at|rs\.?|inr|₹)*\s*(?:rs\.?|inr|₹)?\s*([\d,]+\.?\d*)"""
+        """(?i)\b(?:debited|credited|spent|sent|paid|transferred|withdrawn|received|deposited|deducted)[!.,]?\s+(?:for|by|of|with|is|on|to|in|at|rs\.?|inr|₹)*\s*(?:rs\.?|inr|₹)?\s*([\d,]+\.?\d*)"""
     )
     // Currency prefix: "INR 1,200" or "Rs. 1,200" or "₹1200" or "Rs 500.00"
     private val CURRENCY_PREFIX = Regex(

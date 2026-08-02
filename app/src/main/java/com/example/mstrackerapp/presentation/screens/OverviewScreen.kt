@@ -38,8 +38,10 @@ import com.example.mstrackerapp.domain.models.TransactionType
 import com.example.mstrackerapp.presentation.components.CategoryPieChart
 import com.example.mstrackerapp.presentation.components.DailySpendingLineChart
 import com.example.mstrackerapp.presentation.components.MonthlyBarChart
+import com.example.mstrackerapp.presentation.components.PeriodDropdown
 import com.example.mstrackerapp.presentation.components.PieChartSlice
 import com.example.mstrackerapp.presentation.components.TransactionRowItem
+import com.example.mstrackerapp.presentation.components.TypeSegmentedControl
 import com.example.mstrackerapp.utils.CsvExporter
 import com.example.mstrackerapp.utils.Money
 
@@ -65,19 +67,37 @@ fun OverviewScreen(uiState: MSTrackerUiState, viewModel: MSTrackerViewModel) {
         .filter { it.type == TransactionType.EXPENSE }
         .maxByOrNull { it.amountMinor }
 
-    // Top Categories & Pie Slices
-    val categoryExpenses = uiState.transactions
-        .filter { it.type == TransactionType.EXPENSE }
-        .groupBy { it.categoryId }
-        .mapValues { entry -> entry.value.sumOf { it.amountMinor } }
-        .entries
-        .sortedByDescending { it.value }
+    // Category distribution from the SAME period-filtered expenses (all categories;
+    // top 5 + Others so small cats like Fuel still show correctly).
+    val categoryExpenses = remember(uiState.transactions) {
+        uiState.transactions
+            .filter { it.type == TransactionType.EXPENSE && it.smsTransactionSubType != "INFO_ALERT" }
+            .groupBy { it.categoryId }
+            .mapValues { entry -> entry.value.sumOf { it.amountMinor } }
+            .entries
+            .sortedByDescending { it.value }
+    }
 
-    val pieSlices = categoryExpenses.take(4).map { (catId, totalMinor) ->
-        val cat = uiState.categories.find { it.id == catId }
-        val catName = cat?.name ?: "Other"
-        val catColor = try { Color(android.graphics.Color.parseColor(cat?.color ?: "#8F9C8A")) } catch (e: Exception) { Color(0xFF3B7A57) }
-        PieChartSlice(label = catName, value = totalMinor / 100f, color = catColor)
+    val pieSlices = remember(categoryExpenses, uiState.categories) {
+        if (categoryExpenses.isEmpty()) emptyList()
+        else {
+            val top = categoryExpenses.take(5)
+            val rest = categoryExpenses.drop(5).sumOf { it.value }
+            val slices = top.map { (catId, totalMinor) ->
+                val cat = uiState.categories.find { it.id == catId }
+                val catName = cat?.name ?: "Other"
+                val catColor = try {
+                    Color(android.graphics.Color.parseColor(cat?.color ?: "#8F9C8A"))
+                } catch (_: Exception) {
+                    Color(0xFF3B7A57)
+                }
+                PieChartSlice(label = catName, value = totalMinor / 100f, color = catColor)
+            }.toMutableList()
+            if (rest > 0) {
+                slices += PieChartSlice(label = "Others", value = rest / 100f, color = Color(0xFF9E9E9E))
+            }
+            slices
+        }
     }
 
     // Dynamic Chart Data (Aggregating real transactions across last 4 months)
@@ -165,35 +185,23 @@ fun OverviewScreen(uiState: MSTrackerUiState, viewModel: MSTrackerViewModel) {
         verticalArrangement = Arrangement.spacedBy(16.dp),
         contentPadding = PaddingValues(top = 8.dp, bottom = 110.dp)
     ) {
-        // Time Filters Row
+        // Period filter dropdown only at top
         item {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(dashboardFilters) { filter ->
-                    val isSelected = uiState.selectedFilter.equals(filter, ignoreCase = true)
-                    FilterChip(
-                        selected = isSelected,
-                        onClick = { viewModel.onFilterSelect(filter) },
-                        label = { Text(filter, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = Color(0xFF3B7A57),
-                            selectedLabelColor = Color.White,
-                            containerColor = Color(0xFFE4E8E3),
-                            labelColor = Color(0xFF2D332A)
-                        ),
-                        border = FilterChipDefaults.filterChipBorder(
-                            enabled = true,
-                            selected = isSelected,
-                            borderColor = Color(0xFFB0B5AD),
-                            selectedBorderColor = Color(0xFF3B7A57)
-                        ),
-                        modifier = Modifier.defaultMinSize(minHeight = 48.dp)
-                    )
-                }
-            }
+            PeriodDropdown(
+                label = "Period",
+                options = dashboardFilters,
+                selected = uiState.selectedFilter,
+                onSelected = { viewModel.onFilterSelect(it) }
+            )
         }
 
         // 1. Net Worth Card
         item {
+            val netWorthColor = if (uiState.netWorthMinor < 0) Color(0xFFFFCDD2) else Color.White
+            val savingsColor = when {
+                savingsMinor < 0 -> Color(0xFFFFCDD2)
+                else -> Color.White
+            }
             Card(
                 colors = CardDefaults.cardColors(containerColor = Color(0xFF3B7A57)),
                 shape = RoundedCornerShape(24.dp),
@@ -225,10 +233,10 @@ fun OverviewScreen(uiState: MSTrackerUiState, viewModel: MSTrackerViewModel) {
                     }
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = if (uiState.isPrivacyMasked) "â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" else Money.format(uiState.netWorthMinor),
+                        text = if (uiState.isPrivacyMasked) "••••••••" else Money.format(uiState.netWorthMinor),
                         fontSize = 32.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        color = netWorthColor
                     )
 
                     Spacer(modifier = Modifier.height(16.dp))
@@ -244,10 +252,10 @@ fun OverviewScreen(uiState: MSTrackerUiState, viewModel: MSTrackerViewModel) {
                                 Text("Income", fontSize = 11.sp, color = Color.White.copy(alpha = 0.8f))
                             }
                             Text(
-                                text = if (uiState.isPrivacyMasked) "â€¢â€¢â€¢â€¢" else Money.format(uiState.totalIncomeMinor),
+                                text = if (uiState.isPrivacyMasked) "••••" else Money.format(uiState.totalIncomeMinor),
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White
+                                color = Color(0xFFC8E6C9)
                             )
                         }
 
@@ -258,10 +266,10 @@ fun OverviewScreen(uiState: MSTrackerUiState, viewModel: MSTrackerViewModel) {
                                 Text("Expense", fontSize = 11.sp, color = Color.White.copy(alpha = 0.8f))
                             }
                             Text(
-                                text = if (uiState.isPrivacyMasked) "â€¢â€¢â€¢â€¢" else Money.format(uiState.totalExpenseMinor),
+                                text = if (uiState.isPrivacyMasked) "••••" else Money.format(uiState.totalExpenseMinor),
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White
+                                color = Color(0xFFFFCDD2)
                             )
                         }
 
@@ -272,10 +280,10 @@ fun OverviewScreen(uiState: MSTrackerUiState, viewModel: MSTrackerViewModel) {
                                 Text("Savings", fontSize = 11.sp, color = Color.White.copy(alpha = 0.8f))
                             }
                             Text(
-                                text = if (uiState.isPrivacyMasked) "â€¢â€¢â€¢â€¢" else Money.format(savingsMinor),
+                                text = if (uiState.isPrivacyMasked) "••••" else Money.format(savingsMinor),
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White
+                                color = savingsColor
                             )
                         }
                     }
@@ -283,10 +291,13 @@ fun OverviewScreen(uiState: MSTrackerUiState, viewModel: MSTrackerViewModel) {
             }
         }
 
-        // 2. Category Pie Chart
+        // 2. Category Pie Chart — reflects selected period
         if (pieSlices.isNotEmpty()) {
             item {
-                CategoryPieChart(slices = pieSlices)
+                CategoryPieChart(
+                    slices = pieSlices,
+                    title = "Category Distribution · ${uiState.selectedFilter}"
+                )
             }
         }
 
@@ -447,44 +458,19 @@ fun OverviewScreen(uiState: MSTrackerUiState, viewModel: MSTrackerViewModel) {
                     }
                 }
 
-                // Type Tabs Row: All | Credit (+) | Debit (-)
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    items(typeTabOptions) { tab ->
-                        val isSelected = selectedTypeTab.equals(tab, ignoreCase = true)
-                        val labelText = when (tab) {
-                            "Credit" -> "Credit (+)"
-                            "Debit" -> "Debit (-)"
-                            else -> "All (${filteredTransactions.size})"
-                        }
-                        FilterChip(
-                            selected = isSelected,
-                            onClick = { selectedTypeTab = tab },
-                            label = {
-                                Text(
-                                    text = labelText,
-                                    fontSize = 12.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold
-                                )
-                            },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = Color(0xFF3B7A57),
-                                selectedLabelColor = Color.White,
-                                containerColor = Color(0xFFE4E8E3),
-                                labelColor = Color(0xFF2D332A)
-                            ),
-                            border = FilterChipDefaults.filterChipBorder(
-                                enabled = true,
-                                selected = isSelected,
-                                borderColor = Color(0xFFB0B5AD),
-                                selectedBorderColor = Color(0xFF3B7A57)
-                            ),
-                            modifier = Modifier.defaultMinSize(minHeight = 44.dp)
-                        )
-                    }
-                }
+                // Type Tabs: All | Credit | Debit | Just Info — placed here for easy thumb access
+                TypeSegmentedControl(
+                    options = typeTabOptions,
+                    selected = selectedTypeTab,
+                    onSelected = { selectedTypeTab = it }
+                )
+
+                Text(
+                    text = "${filteredTransactions.size} transactions · $selectedTypeTab",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFF555A52)
+                )
             }
         }
 

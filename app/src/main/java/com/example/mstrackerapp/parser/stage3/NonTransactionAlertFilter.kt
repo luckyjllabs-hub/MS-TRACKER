@@ -65,9 +65,13 @@ object NonTransactionAlertFilter {
             debited\s+(?:for|by|from|rs|inr|₹)|
             credited\s+(?:with|by|to\s+(?:your|hdfc|icici|sbi|axis))|
             (?:inr|rs\.?|₹)\s*[\d,]+\.?\d*\s+(?:debited|credited|deposited|spent|withdrawn)|
+            (?:inr|rs\.?|₹)\s*[\d,]+\.?\d*\s+in\s+[\w\s]+(?:bank\s+)?a/?c|
+            \breceived[!.,]?\b|
+            credit\s+alert|
             deposited\s+in|
             spent|withdrawn|cash\s+withdrawal|
             paid\s+to|sent\s+to|trf\s+to|
+            for\s+(?:imps|neft|rtgs)\b|
             interest\s+paid
         )\b""",
         RegexOption.COMMENTS

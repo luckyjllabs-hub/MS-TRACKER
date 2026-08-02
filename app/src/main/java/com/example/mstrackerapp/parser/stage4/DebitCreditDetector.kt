@@ -29,6 +29,16 @@ object DebitCreditDetector {
     // Explicit User Account Credit (user's own account received money)
     private val USER_ACCOUNT_CREDITED = Regex("""(?i)\b(?:acct\s*XX\d+\s*is\s+credited|account\s*XX\d+\s*credited|acc\s*XX\d+\s*credited|credited\s+by|credited\s+to\s+(?:hdfc|icici|sbi|axis|kotak|canara|union|bank|your)\s*a/c|credited\s+with|credit\s+alert|transfer\s+from)\b""")
 
+    // HDFC-style inbound: "Received! INR 12,181.00 in HDFC Bank A/c xx0328" / "For IMPS -NAME-"
+    private val RECEIVED_IN_ACCOUNT = Regex(
+        """(?i)\b(?:
+            received[!.,]?\s*(?:\r?\n|\s)+(?:inr|rs\.?|₹)|
+            (?:inr|rs\.?|₹)\s*[\d,]+\.?\d*\s+in\s+[\w\s]+(?:bank\s+)?a/?c\s*xx?\d*|
+            \bfor\s+(?:imps|neft|rtgs)\s*[-/]
+        )""",
+        RegexOption.COMMENTS
+    )
+
     private val ATM = Regex("""(?i)\b(?:atm\s*(?:wdl|cash|debit|withdrawal)|cash\s*(?:withdrawal|withdraw)|withdrawn\s*at|atm\s+wdl)\b""")
     private val EMI = Regex("""(?i)\b(?:emi|auto[- ]debit\s*emi|loan\s*emi|equated\s*monthly)\b""")
     private val CARD_PURCHASE = Regex("""(?i)\b(?:pos|swipe|card\s*(?:used|swiped|purchase)|merchant)\b""")
@@ -61,6 +71,7 @@ object DebitCreditDetector {
         // 4. Explicit credit/income on user's own account
         // Avoid treating "X credited" (UPI payee) or "credited to the beneficiary" as income.
         val isOwnAccountCredit = USER_ACCOUNT_CREDITED.containsMatchIn(body) ||
+            RECEIVED_IN_ACCOUNT.containsMatchIn(body) ||
             lowerBody.contains("credited by") ||
             (lowerBody.contains("credited") &&
                 !lowerBody.contains("debited") &&
@@ -68,10 +79,12 @@ object DebitCreditDetector {
                 !lowerBody.contains("beneficiary") &&
                 !Regex("""(?i);\s*[A-Za-z].{0,40}\s+credited""").containsMatchIn(body))
         if (isOwnAccountCredit) {
-            val subType = if (lowerBody.contains("upi") || lowerBody.contains("vpa") || lowerBody.contains("transfer from")) {
-                SmsTransactionSubType.UPI_PAYMENT
-            } else {
-                SmsTransactionSubType.CREDIT
+            val subType = when {
+                lowerBody.contains("upi") || lowerBody.contains("vpa") -> SmsTransactionSubType.UPI_PAYMENT
+                lowerBody.contains("imps") || lowerBody.contains("neft") || lowerBody.contains("rtgs") ||
+                    lowerBody.contains("transfer from") || RECEIVED_IN_ACCOUNT.containsMatchIn(body) ->
+                    SmsTransactionSubType.TRANSFER_IN
+                else -> SmsTransactionSubType.CREDIT
             }
             return DebitCreditResult(TransactionType.INCOME, subType)
         }

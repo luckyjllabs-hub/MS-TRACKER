@@ -18,6 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mstrackerapp.domain.models.Category
+import kotlin.math.roundToInt
 
 data class PieChartSlice(
     val label: String,
@@ -28,10 +29,11 @@ data class PieChartSlice(
 @Composable
 fun CategoryPieChart(
     slices: List<PieChartSlice>,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    title: String = "Category Distribution"
 ) {
     val total = slices.sumOf { it.value.toDouble() }.toFloat()
-    if (total == 0f) return
+    if (total <= 0f) return
 
     Card(
         colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -39,7 +41,13 @@ fun CategoryPieChart(
         modifier = modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text("Category Distribution", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF2D332A))
+            Text(title, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF2D332A))
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                "Share of expenses in selected period",
+                fontSize = 11.sp,
+                color = Color(0xFF7C8079)
+            )
             Spacer(modifier = Modifier.height(16.dp))
 
             Row(
@@ -47,33 +55,37 @@ fun CategoryPieChart(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                // Donut Chart Canvas
                 Canvas(modifier = Modifier.size(120.dp)) {
                     var startAngle = -90f
                     val strokeWidth = 32f
-
                     slices.forEach { slice ->
                         val sweepAngle = (slice.value / total) * 360f
-                        drawArc(
-                            color = slice.color,
-                            startAngle = startAngle,
-                            sweepAngle = sweepAngle,
-                            useCenter = false,
-                            style = Stroke(width = strokeWidth)
-                        )
-                        startAngle += sweepAngle
+                        if (sweepAngle > 0f) {
+                            drawArc(
+                                color = slice.color,
+                                startAngle = startAngle,
+                                sweepAngle = sweepAngle.coerceAtLeast(0.5f),
+                                useCenter = false,
+                                style = Stroke(width = strokeWidth)
+                            )
+                            startAngle += sweepAngle
+                        }
                     }
                 }
 
                 Spacer(modifier = Modifier.width(16.dp))
 
-                // Chart Legend
                 Column(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    slices.take(4).forEach { slice ->
-                        val percentage = ((slice.value / total) * 100).toInt()
+                    slices.forEach { slice ->
+                        val rawPct = (slice.value / total) * 100f
+                        val pctLabel = when {
+                            rawPct >= 1f -> "${rawPct.roundToInt()}%"
+                            rawPct > 0f -> "<1%"
+                            else -> "0%"
+                        }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Box(
                                 modifier = Modifier
@@ -81,12 +93,20 @@ fun CategoryPieChart(
                                     .background(slice.color, RoundedCornerShape(2.dp))
                             )
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "${slice.label} ($percentage%)",
-                                fontSize = 11.sp,
-                                color = Color(0xFF555A52),
-                                maxLines = 1
-                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "${slice.label} ($pctLabel)",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFF2D332A),
+                                    maxLines = 1
+                                )
+                                Text(
+                                    text = "₹${"%,.0f".format(slice.value)}",
+                                    fontSize = 10.sp,
+                                    color = Color(0xFF7C8079)
+                                )
+                            }
                         }
                     }
                 }

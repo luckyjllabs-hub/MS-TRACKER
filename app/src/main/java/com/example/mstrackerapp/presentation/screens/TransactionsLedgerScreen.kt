@@ -20,14 +20,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mstrackerapp.domain.models.Transaction
 import com.example.mstrackerapp.domain.models.TransactionType
+import com.example.mstrackerapp.presentation.components.PeriodDropdown
 import com.example.mstrackerapp.presentation.components.TransactionRowItem
+import com.example.mstrackerapp.presentation.components.TypeSegmentedControl
 import com.example.mstrackerapp.utils.Money
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun TransactionsLedgerScreen(uiState: MSTrackerUiState, viewModel: MSTrackerViewModel) {
     val dateFilterOptions = listOf("All", "Today", "Yesterday", "This Week", "This Month", "3 Months", "6 Months", "1 Year", "3 Years")
-    val typeTabOptions = listOf("All", "Credit", "Debit", "Just Info")
+    val typeTabOptions = listOf("All", "Credit", "Debit")
 
     var selectedTypeTab by remember { mutableStateOf("All") }
     var selectedTxForPopup by remember { mutableStateOf<Transaction?>(null) }
@@ -37,7 +39,6 @@ fun TransactionsLedgerScreen(uiState: MSTrackerUiState, viewModel: MSTrackerView
         when (selectedTypeTab) {
             "Credit" -> uiState.transactions.filter { it.type == TransactionType.INCOME }
             "Debit" -> uiState.transactions.filter { it.type == TransactionType.EXPENSE && it.smsTransactionSubType != "INFO_ALERT" }
-            "Just Info" -> uiState.transactions.filter { it.type == TransactionType.JUST_INFO || it.smsTransactionSubType == "INFO_ALERT" || it.messageType == "BANK_ALERT" || it.type == TransactionType.TRANSFER || it.smsTransactionSubType == "CARD_BILL_PAYMENT" }
             else -> uiState.transactions
         }
     }
@@ -84,81 +85,22 @@ fun TransactionsLedgerScreen(uiState: MSTrackerUiState, viewModel: MSTrackerView
             singleLine = true
         )
 
-        Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
-        // Type Tabs: All | Credit | Debit (Matching Reference App Screenshots 1, 3, 5)
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Color(0xFFE4E8E3), shape = RoundedCornerShape(12.dp))
-                .padding(4.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            typeTabOptions.forEach { tab ->
-                val isSelected = selectedTypeTab.equals(tab, ignoreCase = true)
-                Surface(
-                    color = if (isSelected) Color(0xFF3B7A57) else Color.Transparent,
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier
-                        .weight(1f)
-                        .clickable { selectedTypeTab = tab }
-                ) {
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier.padding(vertical = 8.dp)
-                    ) {
-                        Text(
-                            text = when (tab) {
-                                "Credit" -> "Credit (+)"
-                                "Debit" -> "Debit (-)"
-                                "Just Info" -> "Just Info (💬)"
-                                else -> "All (${typeFilteredTransactions.size})"
-                            },
-                            fontSize = 12.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
-                            color = if (isSelected) Color.White else Color(0xFF2D332A)
-                        )
-                    }
-                }
-            }
-        }
+        PeriodDropdown(
+            label = "Period",
+            options = dateFilterOptions,
+            selected = uiState.selectedFilter,
+            onSelected = { viewModel.onFilterSelect(it) }
+        )
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Date Range Filters Row
-        LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            items(dateFilterOptions) { filter ->
-                val isSelected = uiState.selectedFilter.equals(filter, ignoreCase = true)
-                FilterChip(
-                    selected = isSelected,
-                    onClick = { viewModel.onFilterSelect(filter) },
-                    label = {
-                        Text(
-                            text = filter,
-                            fontSize = 11.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                        )
-                    },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = Color(0xFF3B7A57),
-                        selectedLabelColor = Color.White,
-                        containerColor = Color(0xFFE4E8E3),
-                        labelColor = Color(0xFF2D332A)
-                    ),
-                    border = FilterChipDefaults.filterChipBorder(
-                        enabled = true,
-                        selected = isSelected,
-                        borderColor = Color(0xFFB0B5AD),
-                        selectedBorderColor = Color(0xFF3B7A57)
-                    ),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.defaultMinSize(minHeight = 48.dp)
-                )
-            }
-        }
+        TypeSegmentedControl(
+            options = typeTabOptions,
+            selected = selectedTypeTab,
+            onSelected = { selectedTypeTab = it }
+        )
 
         Spacer(modifier = Modifier.height(14.dp))
 
