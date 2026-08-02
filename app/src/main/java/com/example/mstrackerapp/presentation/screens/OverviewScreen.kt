@@ -1,5 +1,6 @@
 package com.example.mstrackerapp.presentation.screens
 
+import android.content.Intent
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -19,12 +20,14 @@ import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -37,11 +40,13 @@ import com.example.mstrackerapp.presentation.components.DailySpendingLineChart
 import com.example.mstrackerapp.presentation.components.MonthlyBarChart
 import com.example.mstrackerapp.presentation.components.PieChartSlice
 import com.example.mstrackerapp.presentation.components.TransactionRowItem
+import com.example.mstrackerapp.utils.CsvExporter
 import com.example.mstrackerapp.utils.Money
 
 @Composable
 fun OverviewScreen(uiState: MSTrackerUiState, viewModel: MSTrackerViewModel) {
-    val dashboardFilters = listOf("This Month", "Today", "Yesterday", "This Week", "3 Months", "6 Months", "1 Year", "3 Years")
+    val context = LocalContext.current
+    val dashboardFilters = listOf("This Month", "Today", "Yesterday", "This Week", "3 Months", "6 Months", "1 Year", "All")
     val typeTabOptions = listOf("All", "Credit", "Debit")
 
     var selectedTypeTab by remember { mutableStateOf("All") }
@@ -136,7 +141,7 @@ fun OverviewScreen(uiState: MSTrackerUiState, viewModel: MSTrackerViewModel) {
 
         list = when (selectedTypeTab) {
             "Credit" -> list.filter { it.type == TransactionType.INCOME }
-            "Debit" -> list.filter { it.type == TransactionType.EXPENSE }
+            "Debit" -> list.filter { it.type == TransactionType.EXPENSE && it.smsTransactionSubType != "INFO_ALERT" }
             else -> list
         }
 
@@ -158,7 +163,7 @@ fun OverviewScreen(uiState: MSTrackerUiState, viewModel: MSTrackerViewModel) {
             .fillMaxSize()
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
-        contentPadding = PaddingValues(top = 8.dp, bottom = 80.dp)
+        contentPadding = PaddingValues(top = 8.dp, bottom = 110.dp)
     ) {
         // Time Filters Row
         item {
@@ -168,10 +173,20 @@ fun OverviewScreen(uiState: MSTrackerUiState, viewModel: MSTrackerViewModel) {
                     FilterChip(
                         selected = isSelected,
                         onClick = { viewModel.onFilterSelect(filter) },
-                        label = { Text(filter, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
+                        label = { Text(filter, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium) },
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = Color(0xFF3B7A57), selectedLabelColor = Color.White
-                        )
+                            selectedContainerColor = Color(0xFF3B7A57),
+                            selectedLabelColor = Color.White,
+                            containerColor = Color(0xFFE4E8E3),
+                            labelColor = Color(0xFF2D332A)
+                        ),
+                        border = FilterChipDefaults.filterChipBorder(
+                            enabled = true,
+                            selected = isSelected,
+                            borderColor = Color(0xFFB0B5AD),
+                            selectedBorderColor = Color(0xFF3B7A57)
+                        ),
+                        modifier = Modifier.defaultMinSize(minHeight = 48.dp)
                     )
                 }
             }
@@ -185,10 +200,32 @@ fun OverviewScreen(uiState: MSTrackerUiState, viewModel: MSTrackerViewModel) {
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(20.dp)) {
-                    Text("Net Worth Summary (${uiState.selectedFilter})", fontSize = 12.sp, color = Color.White.copy(alpha = 0.8f), fontWeight = FontWeight.Medium)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Net Worth Summary (${uiState.selectedFilter})", fontSize = 12.sp, color = Color.White.copy(alpha = 0.8f), fontWeight = FontWeight.Medium)
+                        IconButton(
+                            onClick = {
+                                CsvExporter.exportAndShareCsv(
+                                    context = context,
+                                    filterName = uiState.selectedFilter,
+                                    netWorthMinor = uiState.netWorthMinor,
+                                    incomeMinor = uiState.totalIncomeMinor,
+                                    expenseMinor = uiState.totalExpenseMinor,
+                                    savingsMinor = savingsMinor,
+                                    transactions = filteredTransactions
+                                )
+                            },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(Icons.Default.Share, contentDescription = "Share", tint = Color.White)
+                        }
+                    }
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = if (uiState.isPrivacyMasked) "••••••••" else Money.format(uiState.netWorthMinor),
+                        text = if (uiState.isPrivacyMasked) "â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" else Money.format(uiState.netWorthMinor),
                         fontSize = 32.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
@@ -207,7 +244,7 @@ fun OverviewScreen(uiState: MSTrackerUiState, viewModel: MSTrackerViewModel) {
                                 Text("Income", fontSize = 11.sp, color = Color.White.copy(alpha = 0.8f))
                             }
                             Text(
-                                text = if (uiState.isPrivacyMasked) "••••" else Money.format(uiState.totalIncomeMinor),
+                                text = if (uiState.isPrivacyMasked) "â€¢â€¢â€¢â€¢" else Money.format(uiState.totalIncomeMinor),
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White
@@ -221,7 +258,7 @@ fun OverviewScreen(uiState: MSTrackerUiState, viewModel: MSTrackerViewModel) {
                                 Text("Expense", fontSize = 11.sp, color = Color.White.copy(alpha = 0.8f))
                             }
                             Text(
-                                text = if (uiState.isPrivacyMasked) "••••" else Money.format(uiState.totalExpenseMinor),
+                                text = if (uiState.isPrivacyMasked) "â€¢â€¢â€¢â€¢" else Money.format(uiState.totalExpenseMinor),
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White
@@ -235,7 +272,7 @@ fun OverviewScreen(uiState: MSTrackerUiState, viewModel: MSTrackerViewModel) {
                                 Text("Savings", fontSize = 11.sp, color = Color.White.copy(alpha = 0.8f))
                             }
                             Text(
-                                text = if (uiState.isPrivacyMasked) "••••" else Money.format(savingsMinor),
+                                text = if (uiState.isPrivacyMasked) "â€¢â€¢â€¢â€¢" else Money.format(savingsMinor),
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White
@@ -316,13 +353,23 @@ fun OverviewScreen(uiState: MSTrackerUiState, viewModel: MSTrackerViewModel) {
                         Spacer(modifier = Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text("Largest Single Expense (Tap to view/edit)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF856404))
-                            Text(largestExpense.merchant, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF2D332A))
+                            Text(
+                                text = largestExpense.merchant,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                color = Color(0xFF2D332A),
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
                         }
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = Money.format(largestExpense.amountMinor),
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.sp,
-                            color = Color(0xFFD87D56)
+                            color = Color(0xFFD87D56),
+                            softWrap = false,
+                            maxLines = 1
                         )
                     }
                 }
@@ -331,20 +378,23 @@ fun OverviewScreen(uiState: MSTrackerUiState, viewModel: MSTrackerViewModel) {
 
         // 7. UNIFIED SEARCH & TRANSACTIONS LIST (Placed immediately after Largest Single Expense)
         item {
+            val filterLabel = if (uiState.selectedFilter.equals("All", ignoreCase = true)) "All Time" else uiState.selectedFilter
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    text = "Transactions Ledger (${uiState.selectedFilter})",
+                    text = "Transactions Ledger ($filterLabel)",
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp,
                     color = Color(0xFF2D332A)
                 )
 
-                // Compact Search Bar (Height reduced to 42.dp for clean look and feel)
+                // Search Bar (Height 48.dp for accessibility & no text baseline clipping)
                 Surface(
                     shape = RoundedCornerShape(12.dp),
                     color = Color.White,
                     border = BorderStroke(1.dp, Color(0xFFD0D5CE)),
-                    modifier = Modifier.fillMaxWidth().height(42.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
                 ) {
                     Row(
                         modifier = Modifier
@@ -356,7 +406,7 @@ fun OverviewScreen(uiState: MSTrackerUiState, viewModel: MSTrackerViewModel) {
                             imageVector = Icons.Default.Search,
                             contentDescription = "Search",
                             tint = Color(0xFF7C8079),
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(20.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Box(
@@ -367,7 +417,9 @@ fun OverviewScreen(uiState: MSTrackerUiState, viewModel: MSTrackerViewModel) {
                                 Text(
                                     text = "Search merchant, category, bank, date, amount...",
                                     fontSize = 12.sp,
-                                    color = Color(0xFF7C8079)
+                                    color = Color(0xFF7C8079),
+                                    maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                 )
                             }
                             BasicTextField(
@@ -375,8 +427,9 @@ fun OverviewScreen(uiState: MSTrackerUiState, viewModel: MSTrackerViewModel) {
                                 onValueChange = viewModel::onSearchQueryChange,
                                 singleLine = true,
                                 textStyle = androidx.compose.ui.text.TextStyle(
-                                    fontSize = 12.sp,
-                                    color = Color.Black
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color(0xFF2D332A)
                                 ),
                                 modifier = Modifier.fillMaxWidth()
                             )
@@ -394,39 +447,42 @@ fun OverviewScreen(uiState: MSTrackerUiState, viewModel: MSTrackerViewModel) {
                     }
                 }
 
-                // All | Credit | Debit Type Tabs (Matching Reference App Tabs)
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(Color(0xFFE4E8E3), shape = RoundedCornerShape(12.dp))
-                        .padding(4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                // Type Tabs Row: All | Credit (+) | Debit (-)
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    typeTabOptions.forEach { tab ->
+                    items(typeTabOptions) { tab ->
                         val isSelected = selectedTypeTab.equals(tab, ignoreCase = true)
-                        Surface(
-                            color = if (isSelected) Color(0xFF3B7A57) else Color.Transparent,
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier
-                                .weight(1f)
-                                .clickable { selectedTypeTab = tab }
-                        ) {
-                            Box(
-                                contentAlignment = Alignment.Center,
-                                modifier = Modifier.padding(vertical = 8.dp)
-                            ) {
-                                Text(
-                                    text = when (tab) {
-                                        "Credit" -> "Credit (+)"
-                                        "Debit" -> "Debit (-)"
-                                        else -> "All (${filteredTransactions.size})"
-                                    },
-                                    fontSize = 12.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isSelected) Color.White else Color(0xFF555A52)
-                                )
-                            }
+                        val labelText = when (tab) {
+                            "Credit" -> "Credit (+)"
+                            "Debit" -> "Debit (-)"
+                            else -> "All (${filteredTransactions.size})"
                         }
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { selectedTypeTab = tab },
+                            label = {
+                                Text(
+                                    text = labelText,
+                                    fontSize = 12.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold
+                                )
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = Color(0xFF3B7A57),
+                                selectedLabelColor = Color.White,
+                                containerColor = Color(0xFFE4E8E3),
+                                labelColor = Color(0xFF2D332A)
+                            ),
+                            border = FilterChipDefaults.filterChipBorder(
+                                enabled = true,
+                                selected = isSelected,
+                                borderColor = Color(0xFFB0B5AD),
+                                selectedBorderColor = Color(0xFF3B7A57)
+                            ),
+                            modifier = Modifier.defaultMinSize(minHeight = 44.dp)
+                        )
                     }
                 }
             }
@@ -496,7 +552,7 @@ fun OverviewScreen(uiState: MSTrackerUiState, viewModel: MSTrackerViewModel) {
                             transaction = tx,
                             accountName = account?.name ?: "Account",
                             categoryName = category?.name ?: "Category",
-                            categoryIcon = category?.icon ?: "📦",
+                            categoryIcon = category?.icon ?: "ðŸ“¦",
                             isPrivacyMasked = uiState.isPrivacyMasked,
                             onDelete = { viewModel.deleteTransaction(tx.id) }
                         )
@@ -550,7 +606,7 @@ fun EditableTransactionDetailDialog(
     // Custom Category Input Mode
     var isInputtingNewCategory by remember { mutableStateOf(false) }
     var newCategoryName by remember { mutableStateOf("") }
-    var newCategoryIcon by remember { mutableStateOf("✨") }
+    var newCategoryIcon by remember { mutableStateOf("âœ¨") }
 
     val selectedCategory = categories.find { it.id == selectedCategoryId } ?: categories.firstOrNull()
 
@@ -562,6 +618,9 @@ fun EditableTransactionDetailDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = Color.White,
+        titleContentColor = Color(0xFF2D332A),
+        textContentColor = Color(0xFF2D332A),
         title = {
             Text("Edit Transaction & View Raw SMS", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFF2D332A))
         },
@@ -582,7 +641,11 @@ fun EditableTransactionDetailDialog(
                             text = Money.format(transaction.amountMinor),
                             fontSize = 20.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (selectedType == TransactionType.INCOME) Color(0xFF2E7D32) else Color(0xFFC62828)
+                            color = when (selectedType) {
+                                TransactionType.INCOME -> Color(0xFF2E7D32)
+                                TransactionType.JUST_INFO -> Color(0xFF7C8079)
+                                else -> Color(0xFFC62828)
+                            }
                         )
                         Text("Date & Time: ${transaction.date} at ${transaction.time}", fontSize = 11.sp, color = Color(0xFF7C8079))
                         if (transaction.bankName.isNotBlank()) {
@@ -599,9 +662,10 @@ fun EditableTransactionDetailDialog(
                 ) {
                     OutlinedTextField(
                         value = when (selectedType) {
-                            TransactionType.EXPENSE -> "⬇ DEBIT / EXPENSE (-)"
-                            TransactionType.INCOME -> "⬆ CREDIT / INCOME (+)"
-                            TransactionType.TRANSFER -> "🔄 TRANSFER"
+                            TransactionType.EXPENSE -> "â¬‡ DEBIT / EXPENSE (-)"
+                            TransactionType.INCOME -> "â¬† CREDIT / INCOME (+)"
+                            TransactionType.TRANSFER -> "ðŸ”„ TRANSFER"
+                            TransactionType.JUST_INFO -> "â„¹ï¸ JUST INFO / ALERT (Excluded)"
                         },
                         onValueChange = {},
                         readOnly = true,
@@ -610,10 +674,7 @@ fun EditableTransactionDetailDialog(
                             .menuAnchor()
                             .fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFF3B7A57),
-                            cursorColor = Color(0xFF3B7A57)
-                        )
+                        colors = com.example.mstrackerapp.presentation.components.appTextFieldColors()
                     )
 
                     ExposedDropdownMenu(
@@ -621,23 +682,30 @@ fun EditableTransactionDetailDialog(
                         onDismissRequest = { typeDropdownExpanded = false }
                     ) {
                         DropdownMenuItem(
-                            text = { Text("⬇ DEBIT / EXPENSE (-)", color = Color(0xFFC62828), fontWeight = FontWeight.Bold) },
+                            text = { Text("â¬‡ DEBIT / EXPENSE (-)", color = Color(0xFFC62828), fontWeight = FontWeight.Bold) },
                             onClick = {
                                 selectedType = TransactionType.EXPENSE
                                 typeDropdownExpanded = false
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("⬆ CREDIT / INCOME (+)", color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold) },
+                            text = { Text("â¬† CREDIT / INCOME (+)", color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold) },
                             onClick = {
                                 selectedType = TransactionType.INCOME
                                 typeDropdownExpanded = false
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("🔄 TRANSFER", color = Color(0xFF2E5B88), fontWeight = FontWeight.Bold) },
+                            text = { Text("ðŸ”„ TRANSFER", color = Color(0xFF2E5B88), fontWeight = FontWeight.Bold) },
                             onClick = {
                                 selectedType = TransactionType.TRANSFER
+                                typeDropdownExpanded = false
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("â„¹ï¸ JUST INFO / ALERT (Excluded)", color = Color(0xFF7C8079), fontWeight = FontWeight.Bold) },
+                            onClick = {
+                                selectedType = TransactionType.JUST_INFO
                                 typeDropdownExpanded = false
                             }
                         )
@@ -652,7 +720,7 @@ fun EditableTransactionDetailDialog(
                     onExpandedChange = { categoryDropdownExpanded = !categoryDropdownExpanded }
                 ) {
                     OutlinedTextField(
-                        value = "${selectedCategory?.icon ?: "📦"} ${selectedCategory?.name ?: "Select Category"}",
+                        value = "${selectedCategory?.icon ?: "ðŸ“¦"} ${selectedCategory?.name ?: "Select Category"}",
                         onValueChange = {},
                         readOnly = true,
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = categoryDropdownExpanded) },
@@ -660,10 +728,7 @@ fun EditableTransactionDetailDialog(
                             .menuAnchor()
                             .fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFF3B7A57),
-                            cursorColor = Color(0xFF3B7A57)
-                        )
+                        colors = com.example.mstrackerapp.presentation.components.appTextFieldColors()
                     )
 
                     ExposedDropdownMenu(
@@ -676,7 +741,7 @@ fun EditableTransactionDetailDialog(
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(Icons.Default.Add, contentDescription = null, tint = Color(0xFF3B7A57), modifier = Modifier.size(18.dp))
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("➕ Input / Create New Category...", color = Color(0xFF3B7A57), fontWeight = FontWeight.Bold)
+                                    Text("âž• Input / Create New Category...", color = Color(0xFF3B7A57), fontWeight = FontWeight.Bold)
                                 }
                             },
                             onClick = {

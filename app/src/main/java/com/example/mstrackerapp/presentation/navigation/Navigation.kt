@@ -11,7 +11,7 @@ import com.example.mstrackerapp.presentation.screens.MainScreen
 import kotlinx.serialization.Serializable
 
 enum class AppTab {
-    OVERVIEW, TRANSACTIONS, GOALS, ACCOUNTS, BUDGET, SETTINGS, SMS_INBOX
+    OVERVIEW, TRANSACTIONS, GOALS, ACCOUNTS, BUDGET, SETTINGS, SMS_INBOX, CLASSIFICATION_REVIEW
 }
 
 @Serializable

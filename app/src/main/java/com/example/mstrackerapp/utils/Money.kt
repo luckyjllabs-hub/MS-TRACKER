@@ -14,7 +14,8 @@ object Money {
     }
 
     fun format(minor: Long, showSymbol: Boolean = true, absolute: Boolean = false): String {
-        val valMinor = if (absolute) abs(minor) else minor
+        // ALWAYS use absolute minor for formatter to prevent NumberFormat from adding a second minus sign
+        val valMinor = abs(minor)
         val rupees = valMinor / 100.0
         val prefix = if (!absolute && minor < 0) "-" else ""
 
@@ -25,7 +26,7 @@ object Money {
         }
 
         val formattedWithSymbol = formatter.format(rupees)
-        val formattedNumber = formattedWithSymbol.replace("₹", "").trim()
+        val formattedNumber = formattedWithSymbol.replace("₹", "").replace("-", "").trim()
 
         return if (showSymbol) {
             "${prefix}₹$formattedNumber"

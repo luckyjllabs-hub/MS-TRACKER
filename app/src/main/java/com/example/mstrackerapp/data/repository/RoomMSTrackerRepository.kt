@@ -23,7 +23,9 @@ class RoomMSTrackerRepository(
     private val goalDao: GoalDao,
     private val smsQueueDao: SMSQueueDao,
     private val userPrefs: UserPreferencesRepository,
-    private val userLearnedMappingDao: UserLearnedMappingDao? = null
+    private val userLearnedMappingDao: UserLearnedMappingDao? = null,
+    private val merchantDao: MerchantDao? = null,
+    private val merchantAliasDao: MerchantAliasDao? = null
 ) : MSTrackerRepository {
 
     private val scope = CoroutineScope(Dispatchers.IO)
@@ -117,7 +119,9 @@ class RoomMSTrackerRepository(
     suspend fun performChangeCategoryAndAccept(smsId: String, newCategoryId: String) {
         val queueItems = smsQueueDao.getSmsQueueList()
         val sms = queueItems.find { it.id == smsId } ?: return
-        val learningManager = userLearnedMappingDao?.let { com.example.mstrackerapp.parser.classifier.CategoryLearningManager(it) }
+        val learningManager = userLearnedMappingDao?.let {
+            com.example.mstrackerapp.parser.classifier.CategoryLearningManager(it, merchantDao, merchantAliasDao)
+        }
         val processor = com.example.mstrackerapp.data.parser.InboxQueueProcessor(smsQueueDao, transactionDao, learningManager)
         processor.changeCategoryAndAccept(sms, newCategoryId)
     }
@@ -125,7 +129,10 @@ class RoomMSTrackerRepository(
     suspend fun performAcceptSmsItem(smsId: String) {
         val queueItems = smsQueueDao.getSmsQueueList()
         val sms = queueItems.find { it.id == smsId } ?: return
-        val processor = com.example.mstrackerapp.data.parser.InboxQueueProcessor(smsQueueDao, transactionDao)
+        val learningManager = userLearnedMappingDao?.let {
+            com.example.mstrackerapp.parser.classifier.CategoryLearningManager(it, merchantDao, merchantAliasDao)
+        }
+        val processor = com.example.mstrackerapp.data.parser.InboxQueueProcessor(smsQueueDao, transactionDao, learningManager)
         processor.acceptItem(sms)
     }
 
@@ -133,11 +140,19 @@ class RoomMSTrackerRepository(
     override fun updateTransaction(id: String, merchant: String, categoryId: String, amountRupees: Double, accountId: String, note: String, date: String, type: TransactionType) {
         scope.launch {
             val existing = transactionDao.getTransaction(id) ?: return@launch
+            val updatedMerchant = merchant.ifBlank { existing.merchant }
             transactionDao.updateTransaction(existing.copy(
-                type = type.name, merchant = merchant.ifBlank { existing.merchant }, categoryId = categoryId,
+                type = type.name, merchant = updatedMerchant, categoryId = categoryId,
                 amountMinor = (amountRupees * 100).toLong(), accountId = accountId,
                 note = note, date = date, isManual = true, updatedAt = System.currentTimeMillis()
             ))
+            // Learn from ledger edits so future SMS auto-classify
+            if (existing.categoryId != categoryId || existing.merchant != updatedMerchant) {
+                userLearnedMappingDao?.let {
+                    com.example.mstrackerapp.parser.classifier.CategoryLearningManager(it, merchantDao, merchantAliasDao)
+                        .onUserChangedCategory(updatedMerchant, categoryId)
+                }
+            }
         }
     }
     override fun addAccount(name: String, type: AccountType, startingBalanceRupees: Double, icon: String) {}

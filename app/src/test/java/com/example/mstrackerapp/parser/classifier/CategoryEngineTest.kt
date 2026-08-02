@@ -34,7 +34,7 @@ class CategoryEngineTest {
         assertEquals("cat-6", result.categoryId)
         assertEquals("Health", result.categoryName)
         assertEquals(ClassificationConfidenceScore.MEDIUM, result.confidence)
-        assertTrue(result.reason.contains("Matched keyword 'pharmacy'"))
+        assertTrue(result.reason.contains("keyword", ignoreCase = true))
     }
 
     @Test

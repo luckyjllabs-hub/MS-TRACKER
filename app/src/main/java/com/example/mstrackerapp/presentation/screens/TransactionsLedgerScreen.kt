@@ -27,16 +27,17 @@ import com.example.mstrackerapp.utils.Money
 @Composable
 fun TransactionsLedgerScreen(uiState: MSTrackerUiState, viewModel: MSTrackerViewModel) {
     val dateFilterOptions = listOf("All", "Today", "Yesterday", "This Week", "This Month", "3 Months", "6 Months", "1 Year", "3 Years")
-    val typeTabOptions = listOf("All", "Credit", "Debit")
+    val typeTabOptions = listOf("All", "Credit", "Debit", "Just Info")
 
     var selectedTypeTab by remember { mutableStateOf("All") }
     var selectedTxForPopup by remember { mutableStateOf<Transaction?>(null) }
 
-    // Apply Type Tab Filter (All, Credit, Debit)
+    // Apply Type Tab Filter (All, Credit, Debit, Just Info)
     val typeFilteredTransactions = remember(uiState.transactions, selectedTypeTab) {
         when (selectedTypeTab) {
             "Credit" -> uiState.transactions.filter { it.type == TransactionType.INCOME }
-            "Debit" -> uiState.transactions.filter { it.type == TransactionType.EXPENSE }
+            "Debit" -> uiState.transactions.filter { it.type == TransactionType.EXPENSE && it.smsTransactionSubType != "INFO_ALERT" }
+            "Just Info" -> uiState.transactions.filter { it.type == TransactionType.JUST_INFO || it.smsTransactionSubType == "INFO_ALERT" || it.messageType == "BANK_ALERT" || it.type == TransactionType.TRANSFER || it.smsTransactionSubType == "CARD_BILL_PAYMENT" }
             else -> uiState.transactions
         }
     }
@@ -79,15 +80,7 @@ fun TransactionsLedgerScreen(uiState: MSTrackerUiState, viewModel: MSTrackerView
                 }
             },
             shape = RoundedCornerShape(14.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Color(0xFF3B7A57),
-                unfocusedBorderColor = Color(0xFFD0D5CE),
-                focusedContainerColor = Color.White,
-                unfocusedContainerColor = Color.White,
-                focusedTextColor = Color.Black,
-                unfocusedTextColor = Color.Black,
-                cursorColor = Color(0xFF3B7A57)
-            ),
+            colors = com.example.mstrackerapp.presentation.components.appTextFieldColors(),
             singleLine = true
         )
 
@@ -118,11 +111,12 @@ fun TransactionsLedgerScreen(uiState: MSTrackerUiState, viewModel: MSTrackerView
                             text = when (tab) {
                                 "Credit" -> "Credit (+)"
                                 "Debit" -> "Debit (-)"
+                                "Just Info" -> "Just Info (💬)"
                                 else -> "All (${typeFilteredTransactions.size})"
                             },
                             fontSize = 12.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                            color = if (isSelected) Color.White else Color(0xFF555A52)
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                            color = if (isSelected) Color.White else Color(0xFF2D332A)
                         )
                     }
                 }
@@ -145,16 +139,23 @@ fun TransactionsLedgerScreen(uiState: MSTrackerUiState, viewModel: MSTrackerView
                         Text(
                             text = filter,
                             fontSize = 11.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                         )
                     },
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = Color(0xFF3B7A57),
                         selectedLabelColor = Color.White,
-                        containerColor = Color.White,
+                        containerColor = Color(0xFFE4E8E3),
                         labelColor = Color(0xFF2D332A)
                     ),
-                    shape = RoundedCornerShape(12.dp)
+                    border = FilterChipDefaults.filterChipBorder(
+                        enabled = true,
+                        selected = isSelected,
+                        borderColor = Color(0xFFB0B5AD),
+                        selectedBorderColor = Color(0xFF3B7A57)
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.defaultMinSize(minHeight = 48.dp)
                 )
             }
         }
@@ -177,7 +178,7 @@ fun TransactionsLedgerScreen(uiState: MSTrackerUiState, viewModel: MSTrackerView
         } else {
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(bottom = 80.dp)
+                contentPadding = PaddingValues(bottom = 110.dp)
             ) {
                 groupedTransactions.forEach { (dateHeader, dayTransactions) ->
                     stickyHeader {

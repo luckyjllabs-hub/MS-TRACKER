@@ -10,17 +10,24 @@ data class DebitCreditResult(
 
 object DebitCreditDetector {
 
+    // Credit Card Bill Payment acknowledgment (e.g., "Online Payment of Rs.14504 vide Ref# ... was credited to your card")
+    private val CARD_BILL_PAYMENT = Regex("""(?i)\b(?:payment\s+of\s+rs\.?\s*[\d,]+.*credited\s+to\s+(?:your\s+)?card|payment\s+received\s+towards\s+(?:your\s+)?credit\s+card|credited\s+to\s+your\s+(?:credit\s+)?card|online\s+payment.*credited\s+to.*card|payment.*credited\s+to\s+your\s+card)\b""")
+
     // Income / Credit Patterns
     private val SALARY = Regex("""(?i)\b(?:salary|payroll|sal\s*cr|stipend|wages|salary\s*credited)\b""")
     private val REFUND = Regex("""(?i)\b(?:refund(?:ed)?|reversal|reversed|cashback\s+(?:of|rs|inr|₹))\b""")
     private val CASH_DEPOSIT = Regex("""(?i)\b(?:cash\s*deposit(?:ed)?|deposited\s*at|deposited\s*in)\b""")
     private val INTEREST_CR = Regex("""(?i)\b(?:interest\s*cr(?:edited)?|int(?:erest)?\s*paid\s*to\s*you)\b""")
 
-    // Explicit User Account Debit (User's account debited or sent out to recipient/beneficiary)
-    private val USER_ACCOUNT_DEBITED = Regex("""(?i)\b(?:acct\s*XX\d+\s*debited|account\s*XX\d+\s*debited|debited\s+by|debited\s+for|debited\s+from|spent|paid|withdrawn|withdrawal|wdl|deducted|swiped|used\s+at|sent\s+to|auto[- ]debit|emi\s+deducted|top-up|topup|top\s+up|mandate|payment\s+of|using\s+apay|trf\s+to|credited\s+to\s+(?:the\s+)?beneficiary)\b""")
+    // Informational Alerts (Balance checks, info notices, mandate setups)
+    private val INFO_NOTICE = Regex("""(?i)\b(?:avail(?:able)?\s*bal(?:ance)?\s*is|bal(?:ance)?\s*in\s*your\s*a/c|mandate\s*registered|statement\s*generated|info:)\b""")
+
+    // Explicit User Account Debit (user's own account moved money out)
+    // NOTE: Do NOT match "credited to the beneficiary" — that is a post-NEFT confirmation, not a debit.
+    private val USER_ACCOUNT_DEBITED = Regex("""(?i)\b(?:acct\s*XX\d+\s*debited|account\s*XX\d+\s*debited|acc\s*XX\d+\s*debited|debited\s+by|debited\s+for|debited\s+from|spent|paid|withdrawn|withdrawal|wdl|deducted|swiped|used\s+at|sent\s+to|auto[- ]debit|emi\s+deducted|top-up|topup|top\s+up|mandate|payment\s+of|using\s+apay|trf\s+to)\b""")
     
-    // Explicit User Account Credit (User's account credited)
-    private val USER_ACCOUNT_CREDITED = Regex("""(?i)\b(?:acct\s*XX\d+\s*is\s+credited|account\s*XX\d+\s*credited|credited\s+by|credited\s+to\s+(?:hdfc|icici|sbi|axis|kotak|canara|union|bank|your)?\s*a/c|credited\s+with|credit\s+alert|transfer\s+from)\b""")
+    // Explicit User Account Credit (user's own account received money)
+    private val USER_ACCOUNT_CREDITED = Regex("""(?i)\b(?:acct\s*XX\d+\s*is\s+credited|account\s*XX\d+\s*credited|acc\s*XX\d+\s*credited|credited\s+by|credited\s+to\s+(?:hdfc|icici|sbi|axis|kotak|canara|union|bank|your)\s*a/c|credited\s+with|credit\s+alert|transfer\s+from)\b""")
 
     private val ATM = Regex("""(?i)\b(?:atm\s*(?:wdl|cash|debit|withdrawal)|cash\s*(?:withdrawal|withdraw)|withdrawn\s*at|atm\s+wdl)\b""")
     private val EMI = Regex("""(?i)\b(?:emi|auto[- ]debit\s*emi|loan\s*emi|equated\s*monthly)\b""")
@@ -31,44 +38,61 @@ object DebitCreditDetector {
     fun detect(body: String): DebitCreditResult {
         val lowerBody = body.lowercase()
 
-        // 1. Specific Income Types
+        // 1. Credit Card Bill Payment Receipt (e.g. "Online Payment of Rs.14504 was credited to your card") -> EXPENSE
+        if (CARD_BILL_PAYMENT.containsMatchIn(body)) {
+            return DebitCreditResult(TransactionType.EXPENSE, SmsTransactionSubType.CARD_BILL_PAYMENT)
+        }
+
+        // 2. Specific Income Types
         if (SALARY.containsMatchIn(body)) return DebitCreditResult(TransactionType.INCOME, SmsTransactionSubType.SALARY)
         if (REFUND.containsMatchIn(body)) return DebitCreditResult(TransactionType.INCOME, SmsTransactionSubType.REFUND)
         if (CASH_DEPOSIT.containsMatchIn(body)) return DebitCreditResult(TransactionType.INCOME, SmsTransactionSubType.CASH_DEPOSIT)
         if (INTEREST_CR.containsMatchIn(body)) return DebitCreditResult(TransactionType.INCOME, SmsTransactionSubType.INTEREST_CREDIT)
 
-        // 2. Check explicit credit/income (e.g., "credited by Rs.6000 transfer from CHANDRAMOULI SANCHI")
-        if (USER_ACCOUNT_CREDITED.containsMatchIn(body) || (lowerBody.contains("credited by") || (lowerBody.contains("credited") && !lowerBody.contains("debited")))) {
-            val subType = if (lowerBody.contains("upi") || lowerBody.contains("vpa") || lowerBody.contains("transfer from")) SmsTransactionSubType.UPI_PAYMENT else SmsTransactionSubType.CREDIT
+        // 3. Info / non-movement notices (balance text without own-account debit/credit)
+        if (INFO_NOTICE.containsMatchIn(body) &&
+            !USER_ACCOUNT_DEBITED.containsMatchIn(body) &&
+            !USER_ACCOUNT_CREDITED.containsMatchIn(body) &&
+            !lowerBody.contains("debited")
+        ) {
+            return DebitCreditResult(TransactionType.JUST_INFO, SmsTransactionSubType.INFO_ALERT)
+        }
+
+        // 4. Explicit credit/income on user's own account
+        // Avoid treating "X credited" (UPI payee) or "credited to the beneficiary" as income.
+        val isOwnAccountCredit = USER_ACCOUNT_CREDITED.containsMatchIn(body) ||
+            lowerBody.contains("credited by") ||
+            (lowerBody.contains("credited") &&
+                !lowerBody.contains("debited") &&
+                !lowerBody.contains("card") &&
+                !lowerBody.contains("beneficiary") &&
+                !Regex("""(?i);\s*[A-Za-z].{0,40}\s+credited""").containsMatchIn(body))
+        if (isOwnAccountCredit) {
+            val subType = if (lowerBody.contains("upi") || lowerBody.contains("vpa") || lowerBody.contains("transfer from")) {
+                SmsTransactionSubType.UPI_PAYMENT
+            } else {
+                SmsTransactionSubType.CREDIT
+            }
             return DebitCreditResult(TransactionType.INCOME, subType)
         }
 
-        // 3. Check if User's Account is Debited / Top-up / Mandate / Paid
+        // 5. User's account debited / top-up / mandate / paid
         val isDebited = USER_ACCOUNT_DEBITED.containsMatchIn(body) ||
                 lowerBody.contains("debited") ||
                 lowerBody.contains("top-up") ||
                 lowerBody.contains("topup") ||
-                lowerBody.contains("mandate") ||
-                lowerBody.contains("payment of") ||
-                lowerBody.contains("spent") ||
                 lowerBody.contains("paid") ||
-                lowerBody.contains("withdrawn") ||
-                lowerBody.contains("trf to")
+                lowerBody.contains("payment of")
 
-        if (isDebited) {
-            val subType = when {
-                ATM.containsMatchIn(body) -> SmsTransactionSubType.ATM
-                EMI.containsMatchIn(body) -> SmsTransactionSubType.EMI
-                CARD_PURCHASE.containsMatchIn(body) -> SmsTransactionSubType.CARD_PURCHASE
-                SUBSCRIPTION.containsMatchIn(body) -> SmsTransactionSubType.SUBSCRIPTION
-                INTEREST_DR.containsMatchIn(body) -> SmsTransactionSubType.INTEREST_DEBIT
-                lowerBody.contains("upi") || lowerBody.contains("vpa") -> SmsTransactionSubType.UPI_PAYMENT
-                else -> SmsTransactionSubType.DEBIT
-            }
-            return DebitCreditResult(TransactionType.EXPENSE, subType)
+        // EMI keyword alone (without due reminder — those are filtered earlier) → expense
+        return when {
+            ATM.containsMatchIn(body) -> DebitCreditResult(TransactionType.EXPENSE, SmsTransactionSubType.ATM)
+            EMI.containsMatchIn(body) && isDebited -> DebitCreditResult(TransactionType.EXPENSE, SmsTransactionSubType.EMI)
+            CARD_PURCHASE.containsMatchIn(body) -> DebitCreditResult(TransactionType.EXPENSE, SmsTransactionSubType.CARD_PURCHASE)
+            SUBSCRIPTION.containsMatchIn(body) -> DebitCreditResult(TransactionType.EXPENSE, SmsTransactionSubType.SUBSCRIPTION)
+            INTEREST_DR.containsMatchIn(body) -> DebitCreditResult(TransactionType.EXPENSE, SmsTransactionSubType.INTEREST_DEBIT)
+            isDebited -> DebitCreditResult(TransactionType.EXPENSE, SmsTransactionSubType.UPI_PAYMENT)
+            else -> DebitCreditResult(TransactionType.EXPENSE, SmsTransactionSubType.DEBIT)
         }
-
-        // Default: Treat as Expense / Debit
-        return DebitCreditResult(TransactionType.EXPENSE, SmsTransactionSubType.DEBIT)
     }
 }

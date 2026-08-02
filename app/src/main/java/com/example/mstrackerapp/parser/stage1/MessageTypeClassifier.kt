@@ -41,12 +41,13 @@ object MessageTypeClassifier {
     private val DELIVERY_SENDERS = setOf("FEDEXP", "BLUDRK", "BLUDRT", "DTDCCO", "EKARTL", "DELHVR", "DLHVRY", "XPRSBD")
     private val SHOPPING_SENDERS = setOf("AMAZON", "FLIPKR", "FLPKRT", "MYNTRA", "MEESHO", "SNAPDL", "NYKAA", "AJIO", "LENSKT", "LNKART", "LNSKRT")
     private val RECHARGE_PATTERN = Regex("""(?i)\b(?:recharge|talktime|data pack|validity|balance added|mobile pack)\b""")
-    private val BILL_PATTERN = Regex("""(?i)\b(?:bill due|payment due|minimum due|due date|amount due|outstanding)\b""")
+    private val BILL_PATTERN = Regex("""(?i)\b(?:bill due|payment due|minimum due|due date|amount due|outstanding|emi.{0,40}is due|is due.{0,40}emi|premium.{0,40}due|will be deducted)\b""")
     private val LOAN_PATTERN = Regex("""(?i)\b(?:loan offer|pre-approved|personal loan|home loan offer|credit offer|approved loan)\b""")
     private val KYC_PATTERN = Regex("""(?i)\b(?:kyc|know your customer|complete your kyc|update kyc|kyc pending|video kyc)\b""")
     private val SECURITY_PATTERN = Regex("""(?i)\b(?:login attempt|new login|password (?:changed|reset)|device registered|suspicious|security alert)\b""")
     private val TELECOM_SENDERS = setOf("AIRTEL", "JIO", "VODAFN", "BSNLTX", "IDEACL", "AIRTLM", "JIOMSG", "VICARE")
     private val PERSONAL_SENDER = Regex("""^[+]?[0-9]{10,13}$""")
+    private val EPFO_SENDERS = setOf("EPFOHO", "EPFO", "EPFIND", "UANEPF")
 
     fun classify(sender: String, body: String): MessageType {
         val senderUpper = sender.uppercase().trim()
@@ -61,7 +62,13 @@ object MessageTypeClassifier {
         // 3. Security Alert
         if (SECURITY_PATTERN.containsMatchIn(body)) return MessageType.SECURITY_ALERT
 
-        // 4. FINANCIAL_TRANSACTION: bank sender + amount + financial verb
+        // 4. Non-txn alerts BEFORE financial (EMI due, PF, NEFT beneficiary confirm, etc.)
+        if (com.example.mstrackerapp.parser.stage3.NonTransactionAlertFilter.isNonTransactionAlert(body)) {
+            return if (BILL_PATTERN.containsMatchIn(body)) MessageType.BILL_REMINDER else MessageType.BANK_ALERT
+        }
+        if (EPFO_SENDERS.any { senderUpper.contains(it) }) return MessageType.BANK_ALERT
+
+        // 5. FINANCIAL_TRANSACTION: bank sender + amount + financial verb
         val isBankSender = BANK_SENDERS.any { senderUpper.contains(it) }
         val hasAmount = Regex("""(?:INR|Rs\.?|₹)\s*[\d,]+(?:\.\d+)?""", RegexOption.IGNORE_CASE).containsMatchIn(body) ||
                 Regex("""[\d,]+(?:\.\d+)?\s*(?:INR|Rs\.?|₹)""", RegexOption.IGNORE_CASE).containsMatchIn(body)
@@ -69,31 +76,31 @@ object MessageTypeClassifier {
 
         if ((isBankSender || hasAmount) && hasFinancialVerb) return MessageType.FINANCIAL_TRANSACTION
 
-        // 5. BANK_ALERT (bank sender but no clear debit/credit)
+        // 6. BANK_ALERT (bank sender but no clear debit/credit)
         if (isBankSender && hasAmount) return MessageType.BANK_ALERT
 
-        // 6. Delivery
+        // 7. Delivery
         if (DELIVERY_SENDERS.any { senderUpper.contains(it) }) return MessageType.DELIVERY
 
-        // 7. Shopping
+        // 8. Shopping
         if (SHOPPING_SENDERS.any { senderUpper.contains(it) }) return MessageType.SHOPPING
 
-        // 8. Recharge
+        // 9. Recharge
         if (RECHARGE_PATTERN.containsMatchIn(body)) return MessageType.RECHARGE
 
-        // 9. Bill Reminder
+        // 10. Bill Reminder
         if (BILL_PATTERN.containsMatchIn(body)) return MessageType.BILL_REMINDER
 
-        // 10. Loan
+        // 11. Loan
         if (LOAN_PATTERN.containsMatchIn(body)) return MessageType.LOAN
 
-        // 11. Promotional
+        // 12. Promotional
         if (PROMO_PATTERN.containsMatchIn(body)) return MessageType.PROMOTIONAL
 
-        // 12. Telecom
+        // 13. Telecom
         if (TELECOM_SENDERS.any { senderUpper.contains(it) }) return MessageType.TELECOM
 
-        // 13. Personal
+        // 14. Personal
         if (PERSONAL_SENDER.matches(senderUpper)) return MessageType.PERSONAL
 
         return MessageType.UNKNOWN

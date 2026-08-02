@@ -19,6 +19,14 @@ class FakeTransactionDao : TransactionDao {
     override fun globalSearch(query: String): Flow<List<TransactionEntity>> = flowOf(insertedTransactions)
     override suspend fun countByMerchantAmountDate(merchant: String, amountMinor: Long, date: String): Int = 0
     override suspend fun countDuplicateTransaction(rawSms: String, amountMinor: Long, date: String): Int = 0
+    override fun getTransactionsByCategory(categoryId: String): Flow<List<TransactionEntity>> =
+        flowOf(insertedTransactions.filter { it.categoryId == categoryId })
+    override suspend fun getOtherTransactions(): List<TransactionEntity> =
+        insertedTransactions.filter { it.categoryId == "cat-14" }
+    override suspend fun getTopMerchants(limit: Int): List<com.example.mstrackerapp.data.database.dao.MerchantCountRow> =
+        insertedTransactions.groupingBy { it.merchant }.eachCount()
+            .entries.sortedByDescending { it.value }.take(limit)
+            .map { com.example.mstrackerapp.data.database.dao.MerchantCountRow(it.key, it.value) }
     override suspend fun insertTransaction(transaction: TransactionEntity) { insertedTransactions.add(transaction) }
     override suspend fun updateTransaction(transaction: TransactionEntity) {}
     override suspend fun getTransaction(id: String): TransactionEntity? = null

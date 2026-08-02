@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.sp
 import com.example.mstrackerapp.data.parser.SmsInboxScanner
 import com.example.mstrackerapp.utils.CsvExporter
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun SettingsScreen(
@@ -47,6 +48,8 @@ fun SettingsScreen(
 
     var showRegexDialog by remember { mutableStateOf(false) }
     var showDictDialog by remember { mutableStateOf(false) }
+    var showReviewDialog by remember { mutableStateOf(false) }
+    var reviewSummary by remember { mutableStateOf("Loading…") }
 
     Column(
         modifier = modifier
@@ -277,6 +280,17 @@ fun SettingsScreen(
                                 Text("Merchant Dictionary Manager", fontSize = 13.sp, color = Color(0xFF2D332A))
                             }
                         }
+
+                        TextButton(
+                            onClick = { showReviewDialog = true },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Refresh, contentDescription = null, tint = Color(0xFF3B7A57), modifier = Modifier.size(20.dp))
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text("Classification Review (Others / Unknown)", fontSize = 13.sp, color = Color(0xFF2D332A))
+                            }
+                        }
                     }
                 }
             }
@@ -395,6 +409,52 @@ fun SettingsScreen(
             },
             confirmButton = {
                 TextButton(onClick = { showDictDialog = false }) { Text("Close") }
+            }
+        )
+    }
+
+    if (showReviewDialog) {
+        LaunchedEffect(showReviewDialog) {
+            reviewSummary = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                val db = com.example.mstrackerapp.data.database.MSTrackerDatabase.getDatabase(context)
+                val others = db.transactionDao().getOtherTransactions()
+                val total = uiState.transactions.size.coerceAtLeast(1)
+                val pct = others.size * 100f / total
+                val unknown = others.map { it.merchant }.distinct()
+                    .filter { !com.example.mstrackerapp.parser.classifier.MerchantNormalizer.isKnownMerchant(it) }
+                val top = db.transactionDao().getTopMerchants(20)
+                val counts = uiState.transactions.groupingBy { it.categoryId }.eachCount()
+                    .entries.sortedByDescending { it.value }
+                    .joinToString("\n") { (id, c) ->
+                        "${com.example.mstrackerapp.parser.stage6.SmsCategory.CATEGORY_NAMES[id] ?: id}: $c"
+                    }
+                buildString {
+                    appendLine("Others: ${others.size} (${"%.1f".format(pct)}%)")
+                    appendLine("Unknown merchants: ${unknown.size}")
+                    appendLine()
+                    appendLine("Per category:")
+                    appendLine(counts)
+                    appendLine()
+                    appendLine("Unknown sample:")
+                    unknown.take(15).forEach { appendLine("• $it") }
+                    appendLine()
+                    appendLine("Top merchants:")
+                    top.forEach { appendLine("• ${it.merchant} (${it.cnt})") }
+                }
+            }
+        }
+        AlertDialog(
+            onDismissRequest = { showReviewDialog = false },
+            title = { Text("Classification Review", fontWeight = FontWeight.Bold) },
+            text = {
+                androidx.compose.foundation.lazy.LazyColumn(modifier = Modifier.heightIn(max = 420.dp)) {
+                    item {
+                        Text(reviewSummary, fontSize = 12.sp, color = Color(0xFF2D332A))
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showReviewDialog = false }) { Text("Close") }
             }
         )
     }

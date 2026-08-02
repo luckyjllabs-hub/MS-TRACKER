@@ -28,7 +28,7 @@ object ConfidenceCalculator {
         if (hasUpiId) score += 5
         when (categorySource) {
             "USER_LEARNED" -> score += 10
-            "MERCHANT_DICT" -> score += 8
+            "MERCHANT_DICT", "MERCHANT_ALIAS" -> score += 8
             "KEYWORD" -> score += 3
             "SUBTYPE" -> score += 5
             "UNKNOWN" -> score -= 10
@@ -41,10 +41,12 @@ object ConfidenceCalculator {
             score >= 60 -> "Medium Confidence"
             else -> "Low Confidence"
         }
+        // Unknown / low-confidence classifications go to review queue for learning
+        val goToQueue = categorySource == "UNKNOWN" || score < 55
         return ConfidenceResult(
             score = score,
             label = label,
-            goToQueue = false
+            goToQueue = goToQueue
         )
     }
 }

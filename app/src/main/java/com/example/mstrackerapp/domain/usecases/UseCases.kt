@@ -52,12 +52,27 @@ class GetFilteredTransactionsUseCase {
         val threeYearCal = (now.clone() as Calendar).apply { add(Calendar.YEAR, -3) }
         val threeYearStr = dateFormat.format(threeYearCal.time)
 
+        val firstDayOfThisMonth = (now.clone() as Calendar).apply { set(Calendar.DAY_OF_MONTH, 1) }
+        val firstDayStr = dateFormat.format(firstDayOfThisMonth.time)
+
         // 1. Apply Date Filter
         filtered = when (timeFilter.uppercase().trim()) {
             "TODAY" -> filtered.filter { it.date == todayStr }
             "YESTERDAY" -> filtered.filter { it.date == yesterdayStr }
             "LAST 7 DAYS", "THIS WEEK", "WEEK", "CURRENT WEEK" -> filtered.filter { it.date >= weekStr && it.date <= todayStr }
-            "THIS MONTH", "MONTH", "CURRENT MONTH" -> filtered.filter { it.date >= monthStr && it.date <= todayStr }
+            "THIS MONTH", "MONTH", "CURRENT MONTH" -> {
+                val thisMonthList = filtered.filter { it.date >= firstDayStr && it.date <= todayStr }
+                if (thisMonthList.isNotEmpty()) {
+                    thisMonthList
+                } else if (filtered.isNotEmpty()) {
+                    // Fallback to most recent month with data so user never gets a zero screen
+                    val latestDate = filtered.maxOf { it.date }
+                    val latestMonthPrefix = latestDate.take(7) // "yyyy-MM"
+                    filtered.filter { it.date.startsWith(latestMonthPrefix) }
+                } else {
+                    emptyList()
+                }
+            }
             "3 MONTHS" -> filtered.filter { it.date >= threeMonthStr && it.date <= todayStr }
             "6 MONTHS" -> filtered.filter { it.date >= sixMonthStr && it.date <= todayStr }
             "1 YEAR", "YEAR", "CURRENT YEAR" -> filtered.filter { it.date >= oneYearStr && it.date <= todayStr }

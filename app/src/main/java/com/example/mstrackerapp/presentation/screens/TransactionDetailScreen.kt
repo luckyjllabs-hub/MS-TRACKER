@@ -88,6 +88,7 @@ fun TransactionDetailScreen(
                         value = merchant,
                         onValueChange = { merchant = it },
                         label = { Text("Merchant Name") },
+                        colors = com.example.mstrackerapp.presentation.components.appTextFieldColors(),
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp)
                     )
@@ -97,6 +98,7 @@ fun TransactionDetailScreen(
                         value = amountText,
                         onValueChange = { amountText = it },
                         label = { Text("Amount (₹)") },
+                        colors = com.example.mstrackerapp.presentation.components.appTextFieldColors(),
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp)
                     )
@@ -109,10 +111,12 @@ fun TransactionDetailScreen(
                             FilterChip(
                                 selected = isSelected,
                                 onClick = { selectedCategoryId = cat.id },
-                                label = { Text("${cat.icon} ${cat.name}", fontSize = 12.sp) },
+                                label = { Text("${cat.icon} ${cat.name}", fontSize = 12.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium) },
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = Color(0xFF3B7A57),
-                                    selectedLabelColor = Color.White
+                                    selectedLabelColor = Color.White,
+                                    containerColor = Color(0xFFE4E8E3),
+                                    labelColor = Color(0xFF2D332A)
                                 ),
                                 shape = RoundedCornerShape(10.dp)
                             )
@@ -127,10 +131,12 @@ fun TransactionDetailScreen(
                             FilterChip(
                                 selected = isSelected,
                                 onClick = { selectedAccountId = acc.id },
-                                label = { Text("${acc.icon} ${acc.name}", fontSize = 12.sp) },
+                                label = { Text("${acc.icon} ${acc.name}", fontSize = 12.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium) },
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = Color(0xFF3B7A57),
-                                    selectedLabelColor = Color.White
+                                    selectedLabelColor = Color.White,
+                                    containerColor = Color(0xFFE4E8E3),
+                                    labelColor = Color(0xFF2D332A)
                                 ),
                                 shape = RoundedCornerShape(10.dp)
                             )
@@ -142,6 +148,7 @@ fun TransactionDetailScreen(
                         value = dateText,
                         onValueChange = { dateText = it },
                         label = { Text("Date (yyyy-MM-dd)") },
+                        colors = com.example.mstrackerapp.presentation.components.appTextFieldColors(),
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp)
                     )
@@ -151,6 +158,7 @@ fun TransactionDetailScreen(
                         value = note,
                         onValueChange = { note = it },
                         label = { Text("Notes / Remarks") },
+                        colors = com.example.mstrackerapp.presentation.components.appTextFieldColors(),
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         minLines = 2

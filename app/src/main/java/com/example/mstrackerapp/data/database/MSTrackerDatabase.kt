@@ -39,6 +39,7 @@ abstract class MSTrackerDatabase : RoomDatabase() {
     abstract fun categoryDao(): CategoryDao
     abstract fun merchantDao(): MerchantDao
     abstract fun merchantMappingDao(): MerchantMappingDao
+    abstract fun merchantAliasDao(): MerchantAliasDao
     abstract fun userLearnedMappingDao(): UserLearnedMappingDao
     abstract fun accountDao(): AccountDao
     abstract fun budgetDao(): BudgetDao

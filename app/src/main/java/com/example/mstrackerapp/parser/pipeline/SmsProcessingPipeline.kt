@@ -2,6 +2,8 @@ package com.example.mstrackerapp.parser.pipeline
 
 import com.example.mstrackerapp.domain.models.MessageType
 import com.example.mstrackerapp.domain.models.SmsProcessingStatus
+import com.example.mstrackerapp.domain.models.SmsTransactionSubType
+import com.example.mstrackerapp.domain.models.TransactionType
 import com.example.mstrackerapp.parser.stage1.MessageTypeClassifier
 import com.example.mstrackerapp.parser.stage2.FinancialFilter
 import com.example.mstrackerapp.parser.stage3.SuccessDetector
@@ -53,6 +55,15 @@ object SmsProcessingPipeline {
 
         // --- Stage 4: Debit/Credit Detection ---
         val debitCreditResult = DebitCreditDetector.detect(body)
+        if (debitCreditResult.subType == SmsTransactionSubType.INFO_ALERT ||
+            debitCreditResult.transactionType == TransactionType.JUST_INFO
+        ) {
+            return ParsedSmsResult(
+                status = SmsProcessingStatus.FILTERED,
+                messageType = messageType,
+                filterReason = "Stage4: Informational alert (not a debit/credit)"
+            )
+        }
 
         // --- Stage 5: Information Extraction ---
         val amountMinor = AmountParser.parseAmountMinor(body) ?: 0L
@@ -72,11 +83,16 @@ object SmsProcessingPipeline {
         val availableBalance = BalanceParser.extractBalanceMinor(body)
 
         // --- Stage 6: Category Classification ---
-        val categoryResult = SmsCategory.classify(merchant, body, debitCreditResult.subType, userMappings)
+        val categoryResult = SmsCategory.classify(
+            merchant = merchant,
+            body = body,
+            subType = debitCreditResult.subType,
+            userMappings = userMappings
+        )
 
         // --- Stage 7: Confidence Calculation ---
         val isKnownBank = bank != "Unknown Bank" && !bank.equals(sender, ignoreCase = true)
-        val isMerchantKnown = merchant != "Unknown"
+        val isMerchantKnown = com.example.mstrackerapp.parser.classifier.MerchantNormalizer.isKnownMerchant(merchant)
         val confidenceResult = ConfidenceCalculator.calculate(
             isKnownBankSender = isKnownBank,
             amountFound = amountMinor > 0,

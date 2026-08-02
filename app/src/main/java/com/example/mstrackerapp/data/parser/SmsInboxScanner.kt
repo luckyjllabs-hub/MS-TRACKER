@@ -83,8 +83,13 @@ object SmsInboxScanner {
         CoroutineScope(Dispatchers.IO).launch {
             val db = MSTrackerDatabase.getDatabase(context)
             val recorder = SmsInboxRecorder(db.smsInboxDao())
-            val learningManager = com.example.mstrackerapp.parser.classifier.CategoryLearningManager(db.userLearnedMappingDao())
+            val learningManager = com.example.mstrackerapp.parser.classifier.CategoryLearningManager(
+                db.userLearnedMappingDao(),
+                db.merchantDao(),
+                db.merchantAliasDao()
+            )
             val processor = InboxQueueProcessor(db.smsQueueDao(), db.transactionDao(), learningManager)
+            val userMappings = ClassificationMappingLoader.loadUserMappings(db)
 
             val messages = readHistoricalInbox(context)
             if (messages.isEmpty()) return@launch
@@ -94,7 +99,8 @@ object SmsInboxScanner {
                 val status = processor.processParsedSms(
                     rawSmsText = msg.body,
                     senderBank = msg.sender,
-                    timestamp = msg.date
+                    timestamp = msg.date,
+                    customMappings = userMappings
                 )
                 recorder.markProcessed(rawHash, status.name)
             }

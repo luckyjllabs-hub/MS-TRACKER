@@ -40,9 +40,28 @@ interface TransactionDao {
     @Query("SELECT COUNT(*) FROM transactions WHERE (rawSms = :rawSms AND rawSms != '') OR (amountMinor = :amountMinor AND date = :date)")
     suspend fun countDuplicateTransaction(rawSms: String, amountMinor: Long, date: String): Int
 
+    @Query("SELECT * FROM transactions WHERE categoryId = :categoryId ORDER BY date DESC, time DESC")
+    fun getTransactionsByCategory(categoryId: String): Flow<List<TransactionEntity>>
+
+    @Query("SELECT * FROM transactions WHERE categoryId = 'cat-14' ORDER BY date DESC, time DESC")
+    suspend fun getOtherTransactions(): List<TransactionEntity>
+
+    @Query(
+        """
+        SELECT merchant, COUNT(*) as cnt FROM transactions
+        GROUP BY merchant ORDER BY cnt DESC LIMIT :limit
+        """
+    )
+    suspend fun getTopMerchants(limit: Int): List<MerchantCountRow>
+
     @Query("DELETE FROM transactions WHERE id = :id")
     suspend fun deleteTransaction(id: String)
 }
+
+data class MerchantCountRow(
+    val merchant: String,
+    val cnt: Int
+)
 
 @Dao
 interface CategoryDao {
@@ -64,6 +83,12 @@ interface MerchantDao {
     @Query("SELECT * FROM merchants")
     fun getAllMerchants(): Flow<List<MerchantEntity>>
 
+    @Query("SELECT * FROM merchants")
+    suspend fun getAllMerchantsList(): List<MerchantEntity>
+
+    @Query("SELECT * FROM merchants WHERE name = :name LIMIT 1")
+    suspend fun getByName(name: String): MerchantEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMerchant(merchant: MerchantEntity)
 }
@@ -73,8 +98,29 @@ interface MerchantMappingDao {
     @Query("SELECT * FROM merchant_mappings")
     fun getAllMappings(): Flow<List<MerchantMappingEntity>>
 
+    @Query("SELECT * FROM merchant_mappings")
+    suspend fun getAllMappingsList(): List<MerchantMappingEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMapping(mapping: MerchantMappingEntity)
+}
+
+@Dao
+interface MerchantAliasDao {
+    @Query("SELECT * FROM merchant_aliases")
+    fun getAllAliases(): Flow<List<MerchantAliasEntity>>
+
+    @Query("SELECT * FROM merchant_aliases")
+    suspend fun getAllAliasesList(): List<MerchantAliasEntity>
+
+    @Query("SELECT * FROM merchant_aliases WHERE aliasPattern = :alias LIMIT 1")
+    suspend fun getByAlias(alias: String): MerchantAliasEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAlias(alias: MerchantAliasEntity)
+
+    @Query("DELETE FROM merchant_aliases WHERE id = :id")
+    suspend fun deleteAlias(id: String)
 }
 
 @Dao

@@ -1,6 +1,8 @@
 package com.example.mstrackerapp.presentation.screens
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -301,13 +303,23 @@ fun AddGoalDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Create Savings Goal", fontWeight = FontWeight.Bold) },
+        containerColor = Color.White,
+        titleContentColor = Color(0xFF2D332A),
+        textContentColor = Color(0xFF2D332A),
+        modifier = Modifier
+            .widthIn(max = 520.dp)
+            .imePadding(),
+        title = { Text("Create Savings Goal", fontWeight = FontWeight.Bold, color = Color(0xFF2D332A)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
                     label = { Text("Goal Name (e.g. New Phone, Vacation)") },
+                    colors = com.example.mstrackerapp.presentation.components.appTextFieldColors(),
                     modifier = Modifier.fillMaxWidth()
                 )
 
@@ -315,6 +327,7 @@ fun AddGoalDialog(
                     value = targetText,
                     onValueChange = { targetText = it },
                     label = { Text("Target Amount (₹)") },
+                    colors = com.example.mstrackerapp.presentation.components.appTextFieldColors(),
                     modifier = Modifier.fillMaxWidth()
                 )
 
@@ -322,6 +335,7 @@ fun AddGoalDialog(
                     value = deadline,
                     onValueChange = { deadline = it },
                     label = { Text("Target Deadline (yyyy-MM-dd)") },
+                    colors = com.example.mstrackerapp.presentation.components.appTextFieldColors(),
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -332,14 +346,19 @@ fun AddGoalDialog(
                     val target = targetText.toDoubleOrNull() ?: 0.0
                     onConfirm(name, target, icon, deadline)
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3B7A57))
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3B7A57), contentColor = Color.White),
+                modifier = Modifier.defaultMinSize(minHeight = 48.dp)
             ) {
-                Text("Create Goal")
+                Text("Create Goal", color = Color.White, fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
+            TextButton(
+                onClick = onDismiss,
+                colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFF3B7A57)),
+                modifier = Modifier.defaultMinSize(minHeight = 48.dp)
+            ) {
+                Text("Cancel", color = Color(0xFF3B7A57), fontWeight = FontWeight.Bold)
             }
         }
     )

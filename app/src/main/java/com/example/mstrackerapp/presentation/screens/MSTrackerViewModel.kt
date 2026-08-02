@@ -31,7 +31,7 @@ class MSTrackerViewModel(private val repository: MSTrackerRepository) : ViewMode
 
     private val _activeTab = MutableStateFlow(AppTab.OVERVIEW)
     private val _searchQuery = MutableStateFlow("")
-    private val _selectedFilter = MutableStateFlow("All")
+    private val _selectedFilter = MutableStateFlow("This Month")
 
     private val dataFlow = combine(
         repository.accounts,

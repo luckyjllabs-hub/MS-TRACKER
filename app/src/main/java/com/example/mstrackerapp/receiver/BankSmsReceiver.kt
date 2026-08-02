@@ -18,7 +18,11 @@ class BankSmsReceiver : BroadcastReceiver() {
             val messages = Telephony.Sms.Intents.getMessagesFromIntent(intent) ?: return
             val db = MSTrackerDatabase.getDatabase(context)
             val recorder = com.example.mstrackerapp.data.parser.SmsInboxRecorder(db.smsInboxDao())
-            val learningManager = com.example.mstrackerapp.parser.classifier.CategoryLearningManager(db.userLearnedMappingDao())
+            val learningManager = com.example.mstrackerapp.parser.classifier.CategoryLearningManager(
+                db.userLearnedMappingDao(),
+                db.merchantDao(),
+                db.merchantAliasDao()
+            )
             val processor = InboxQueueProcessor(db.smsQueueDao(), db.transactionDao(), learningManager)
 
             val pendingResult = goAsync()
@@ -34,10 +38,12 @@ class BankSmsReceiver : BroadcastReceiver() {
                         val metadata = BankSmsParser.parseMetadata(body)
                         val bankName = metadata.bankName ?: sender
 
+                        val userMappings = com.example.mstrackerapp.data.parser.ClassificationMappingLoader.loadUserMappings(db)
                         val status = processor.processParsedSms(
                             rawSmsText = body,
                             senderBank = bankName,
-                            timestamp = timestamp
+                            timestamp = timestamp,
+                            customMappings = userMappings
                         )
                         recorder.markProcessed(rawHash, status.name)
                     }

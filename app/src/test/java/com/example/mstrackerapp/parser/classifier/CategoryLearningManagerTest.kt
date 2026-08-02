@@ -16,6 +16,10 @@ class FakeUserLearnedMappingDao : UserLearnedMappingDao {
         return flowOf(memoryStore.values.toList())
     }
 
+    override suspend fun getAllLearnedMappingsList(): List<UserLearnedMappingEntity> {
+        return memoryStore.values.toList()
+    }
+
     override suspend fun getMappingForMerchant(merchant: String): UserLearnedMappingEntity? {
         return memoryStore[merchant.uppercase()]
     }

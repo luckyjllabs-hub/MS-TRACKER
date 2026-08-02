@@ -2,6 +2,8 @@ package com.example.mstrackerapp.presentation.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -404,10 +406,19 @@ fun AddAccountDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add New Bank Account", fontWeight = FontWeight.Bold) },
+        containerColor = Color.White,
+        titleContentColor = Color(0xFF2D332A),
+        textContentColor = Color(0xFF2D332A),
+        modifier = Modifier
+            .widthIn(max = 520.dp)
+            .imePadding(),
+        title = { Text("Add New Bank Account", fontWeight = FontWeight.Bold, color = Color(0xFF2D332A)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Select Bank / Institution", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text("Select Bank / Institution", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF2D332A))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     items(majorBanks) { bank ->
                         FilterChip(
@@ -418,7 +429,13 @@ fun AddAccountDialog(
                                     name = "$bank Savings"
                                 }
                             },
-                            label = { Text(bank, fontSize = 10.sp) }
+                            label = { Text(bank, fontSize = 10.sp) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = Color(0xFF3B7A57),
+                                selectedLabelColor = Color.White,
+                                containerColor = Color(0xFFE4E8E3),
+                                labelColor = Color(0xFF2D332A)
+                            )
                         )
                     }
                 }
@@ -427,10 +444,11 @@ fun AddAccountDialog(
                     value = name,
                     onValueChange = { name = it },
                     label = { Text("Account Name") },
+                    colors = com.example.mstrackerapp.presentation.components.appTextFieldColors(),
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                Text("Account Type", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Text("Account Type", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF2D332A))
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     AccountType.values().take(4).forEach { type ->
                         FilterChip(
@@ -446,7 +464,13 @@ fun AddAccountDialog(
                                     AccountType.SAVINGS -> "💰"
                                 }
                             },
-                            label = { Text(type.name, fontSize = 10.sp) }
+                            label = { Text(type.name, fontSize = 10.sp) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = Color(0xFF3B7A57),
+                                selectedLabelColor = Color.White,
+                                containerColor = Color(0xFFE4E8E3),
+                                labelColor = Color(0xFF2D332A)
+                            )
                         )
                     }
                 }
@@ -455,6 +479,7 @@ fun AddAccountDialog(
                     value = balanceText,
                     onValueChange = { balanceText = it },
                     label = { Text("Starting Balance / Owed (₹)") },
+                    colors = com.example.mstrackerapp.presentation.components.appTextFieldColors(),
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -465,14 +490,19 @@ fun AddAccountDialog(
                     val bal = balanceText.toDoubleOrNull() ?: 0.0
                     onConfirm(name, selectedType, bal, icon)
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3B7A57))
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3B7A57), contentColor = Color.White),
+                modifier = Modifier.defaultMinSize(minHeight = 48.dp)
             ) {
-                Text("Add Account")
+                Text("Add Account", color = Color.White, fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
+            TextButton(
+                onClick = onDismiss,
+                colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFF3B7A57)),
+                modifier = Modifier.defaultMinSize(minHeight = 48.dp)
+            ) {
+                Text("Cancel", color = Color(0xFF3B7A57), fontWeight = FontWeight.Bold)
             }
         }
     )

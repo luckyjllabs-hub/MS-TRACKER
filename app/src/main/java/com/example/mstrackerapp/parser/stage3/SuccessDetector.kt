@@ -23,6 +23,7 @@ object SuccessDetector {
 
     /** Returns true if the message represents a SUCCESSFUL completed transaction */
     fun isSuccessful(body: String): Boolean {
+        if (NonTransactionAlertFilter.isNonTransactionAlert(body)) return false
         return !FAILURE_PATTERNS.containsMatchIn(body)
     }
 }

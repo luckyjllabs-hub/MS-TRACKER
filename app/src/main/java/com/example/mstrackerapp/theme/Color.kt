@@ -2,10 +2,16 @@ package com.example.mstrackerapp.theme
 
 import androidx.compose.ui.graphics.Color
 
-val Purple80 = Color(0xFFD0BCFF)
-val PurpleGrey80 = Color(0xFFCCC2DC)
-val Pink80 = Color(0xFFEFB8C8)
+val BrandGreen = Color(0xFF3B7A57)
+val BrandGreenLight = Color(0xFFE8F5E9)
+val BrandGreenDark = Color(0xFF2E6244)
 
-val Purple40 = Color(0xFF6650a4)
-val PurpleGrey40 = Color(0xFF625b71)
-val Pink40 = Color(0xFF7D5260)
+val BrandBackgroundLight = Color(0xFFF4F3EF)
+val BrandBackgroundDark = Color(0xFF191C19)
+
+val BrandSurfaceLight = Color(0xFFFFFFFF)
+val BrandSurfaceDark = Color(0xFF232723)
+
+val BrandTextDark = Color(0xFF2D332A)
+val BrandTextLight = Color(0xFFE2E3DD)
+val BrandTextMuted = Color(0xFF7C8079)

@@ -50,4 +50,31 @@ class MessageTypeClassifierTest {
         )
         assertEquals(MessageType.KYC, result)
     }
+
+    @Test
+    fun `EMI due is BILL_REMINDER not FINANCIAL`() {
+        val result = MessageTypeClassifier.classify(
+            sender = "AD-AXISBK-T",
+            body = "EMI of INR 85956.00 for Axis Bank Loan A/c XX8508 is due on 10-07-26. Maintain adequate balance prior to the due date to avoid lien / bounce / penal charges."
+        )
+        assertEquals(MessageType.BILL_REMINDER, result)
+    }
+
+    @Test
+    fun `NEFT beneficiary confirmation is BANK_ALERT not FINANCIAL`() {
+        val result = MessageTypeClassifier.classify(
+            sender = "JD-ICICIT-S",
+            body = "ICICI BANK NEFT Transaction with reference number IN12621248301795 for Rs. 25000.00 has been credited to the beneficiary account on 31-07-2026 at 09:45:12"
+        )
+        assertEquals(MessageType.BANK_ALERT, result)
+    }
+
+    @Test
+    fun `EPFO contribution is BANK_ALERT not FINANCIAL`() {
+        val result = MessageTypeClassifier.classify(
+            sender = "VA-EPFOHO-G",
+            body = "Dear XXXXXXXX0990, your passbook balance against BGBNG**************2889 is Rs. 41,85,400/-. Contribution of Rs. 62,462/- for due month Jun-26 has been received."
+        )
+        assertEquals(MessageType.BANK_ALERT, result)
+    }
 }

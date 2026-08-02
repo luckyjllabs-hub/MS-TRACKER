@@ -140,11 +140,20 @@ fun SmsInboxScreen(uiState: MSTrackerUiState, viewModel: MSTrackerViewModel) {
                 FilterChip(
                     selected = isSelected,
                     onClick = { selectedQueueFilter = filter },
-                    label = { Text(filter, fontSize = 12.sp) },
+                    label = { Text(filter, fontSize = 12.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium) },
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = Color(0xFF3B7A57),
-                        selectedLabelColor = Color.White
-                    )
+                        selectedLabelColor = Color.White,
+                        containerColor = Color(0xFFE4E8E3),
+                        labelColor = Color(0xFF2D332A)
+                    ),
+                    border = FilterChipDefaults.filterChipBorder(
+                        enabled = true,
+                        selected = isSelected,
+                        borderColor = Color(0xFFB0B5AD),
+                        selectedBorderColor = Color(0xFF3B7A57)
+                    ),
+                    modifier = Modifier.defaultMinSize(minHeight = 48.dp)
                 )
             }
         }
@@ -414,7 +423,10 @@ fun SmsInboxScreen(uiState: MSTrackerUiState, viewModel: MSTrackerViewModel) {
         val sms = selectedSmsToEdit!!
         AlertDialog(
             onDismissRequest = { selectedSmsToEdit = null },
-            title = { Text("Edit Category for ${sms.merchant}") },
+            containerColor = Color.White,
+            titleContentColor = Color(0xFF2D332A),
+            textContentColor = Color(0xFF2D332A),
+            title = { Text("Edit Category for ${sms.merchant}", color = Color(0xFF2D332A), fontWeight = FontWeight.Bold) },
             text = {
                 Column(
                     modifier = Modifier.verticalScroll(rememberScrollState())
@@ -429,14 +441,14 @@ fun SmsInboxScreen(uiState: MSTrackerUiState, viewModel: MSTrackerViewModel) {
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("${category.icon} ${category.name}", modifier = Modifier.weight(1f))
+                            Text("${category.icon} ${category.name}", color = Color(0xFF2D332A), fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
                         }
                     }
                 }
             },
             confirmButton = {
                 TextButton(onClick = { selectedSmsToEdit = null }) {
-                    Text("Cancel")
+                    Text("Cancel", color = Color(0xFF3B7A57), fontWeight = FontWeight.Bold)
                 }
             }
         )
@@ -445,7 +457,10 @@ fun SmsInboxScreen(uiState: MSTrackerUiState, viewModel: MSTrackerViewModel) {
     if (showRationaleDialog) {
         AlertDialog(
             onDismissRequest = { showRationaleDialog = false },
-            title = { Text("Permission Rationale") },
+            containerColor = Color.White,
+            titleContentColor = Color(0xFF2D332A),
+            textContentColor = Color(0xFF2D332A),
+            title = { Text("Permission Rationale", color = Color(0xFF2D332A), fontWeight = FontWeight.Bold) },
             text = { Text("MS Tracker uses SMS access only locally on your phone to convert debit/credit bank alerts into expense entries.") },
             confirmButton = {
                 Button(

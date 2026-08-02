@@ -56,7 +56,17 @@ class DefaultMSTrackerRepository(context: Context? = null) : MSTrackerRepository
         if (context != null) {
             val db = MSTrackerDatabase.getDatabase(context)
             val prefs = UserPreferencesRepository(context)
-            val repo = RoomMSTrackerRepository(db.transactionDao(), db.categoryDao(), db.accountDao(), db.goalDao(), db.smsQueueDao(), prefs, db.userLearnedMappingDao())
+            val repo = RoomMSTrackerRepository(
+                db.transactionDao(),
+                db.categoryDao(),
+                db.accountDao(),
+                db.goalDao(),
+                db.smsQueueDao(),
+                prefs,
+                db.userLearnedMappingDao(),
+                db.merchantDao(),
+                db.merchantAliasDao()
+            )
             this.roomRepo = repo
             this.userPrefs = prefs
 

@@ -2,6 +2,8 @@ package com.example.mstrackerapp.presentation.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -19,6 +21,30 @@ import androidx.compose.ui.unit.sp
 import com.example.mstrackerapp.domain.models.*
 import com.example.mstrackerapp.presentation.navigation.AppTab
 import com.example.mstrackerapp.utils.Money
+
+@Composable
+fun appTextFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedTextColor = Color(0xFF2D332A),
+    unfocusedTextColor = Color(0xFF2D332A),
+    disabledTextColor = Color(0xFF2D332A),
+    focusedContainerColor = Color.White,
+    unfocusedContainerColor = Color.White,
+    disabledContainerColor = Color.White,
+    focusedBorderColor = Color(0xFF3B7A57),
+    unfocusedBorderColor = Color(0xFFD0D5CE),
+    disabledBorderColor = Color(0xFFD0D5CE),
+    focusedLabelColor = Color(0xFF3B7A57),
+    unfocusedLabelColor = Color(0xFF555A52),
+    disabledLabelColor = Color(0xFF555A52),
+    focusedPlaceholderColor = Color(0xFF7C8079),
+    unfocusedPlaceholderColor = Color(0xFF7C8079),
+    disabledPlaceholderColor = Color(0xFF7C8079),
+    cursorColor = Color(0xFF3B7A57),
+    focusedLeadingIconColor = Color(0xFF7C8079),
+    unfocusedLeadingIconColor = Color(0xFF7C8079),
+    focusedTrailingIconColor = Color(0xFF7C8079),
+    unfocusedTrailingIconColor = Color(0xFF7C8079)
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -104,36 +130,49 @@ fun MSTrackerBottomNavigation(
     smsCount: Int,
     onTabSelect: (AppTab) -> Unit
 ) {
+    val navColors = NavigationBarItemDefaults.colors(
+        selectedIconColor = Color.White,
+        selectedTextColor = Color(0xFF3B7A57),
+        unselectedIconColor = Color(0xFF555A52),
+        unselectedTextColor = Color(0xFF555A52),
+        indicatorColor = Color(0xFF3B7A57)
+    )
+
     NavigationBar(containerColor = Color.White, tonalElevation = 8.dp) {
         NavigationBarItem(
             selected = activeTab == AppTab.OVERVIEW,
             onClick = { onTabSelect(AppTab.OVERVIEW) },
             icon = { Icon(Icons.Default.Home, contentDescription = "Overview") },
-            label = { Text("Overview", fontSize = 10.sp) }
+            label = { Text("Overview", fontSize = 10.sp, fontWeight = if (activeTab == AppTab.OVERVIEW) FontWeight.Bold else FontWeight.SemiBold) },
+            colors = navColors
         )
         NavigationBarItem(
             selected = activeTab == AppTab.BUDGET,
             onClick = { onTabSelect(AppTab.BUDGET) },
             icon = { Icon(Icons.Default.PieChart, contentDescription = "Budget") },
-            label = { Text("Budget", fontSize = 10.sp) }
+            label = { Text("Budget", fontSize = 10.sp, fontWeight = if (activeTab == AppTab.BUDGET) FontWeight.Bold else FontWeight.SemiBold) },
+            colors = navColors
         )
         NavigationBarItem(
             selected = activeTab == AppTab.GOALS,
             onClick = { onTabSelect(AppTab.GOALS) },
             icon = { Icon(Icons.Default.Flag, contentDescription = "Goals") },
-            label = { Text("Goals", fontSize = 10.sp) }
+            label = { Text("Goals", fontSize = 10.sp, fontWeight = if (activeTab == AppTab.GOALS) FontWeight.Bold else FontWeight.SemiBold) },
+            colors = navColors
         )
         NavigationBarItem(
             selected = activeTab == AppTab.ACCOUNTS,
             onClick = { onTabSelect(AppTab.ACCOUNTS) },
             icon = { Icon(Icons.Default.AccountBalanceWallet, contentDescription = "Accounts") },
-            label = { Text("Accounts", fontSize = 10.sp) }
+            label = { Text("Accounts", fontSize = 10.sp, fontWeight = if (activeTab == AppTab.ACCOUNTS) FontWeight.Bold else FontWeight.SemiBold) },
+            colors = navColors
         )
         NavigationBarItem(
             selected = activeTab == AppTab.SETTINGS,
             onClick = { onTabSelect(AppTab.SETTINGS) },
             icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
-            label = { Text("Settings", fontSize = 10.sp) }
+            label = { Text("Settings", fontSize = 10.sp, fontWeight = if (activeTab == AppTab.SETTINGS) FontWeight.Bold else FontWeight.SemiBold) },
+            colors = navColors
         )
     }
 }
@@ -171,41 +210,50 @@ fun TransactionRowItem(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(if (isExpense) Color(0xFFFFEBEE) else Color(0xFFE8F5E9)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(text = categoryIcon, fontSize = 18.sp)
-                }
-                Spacer(modifier = Modifier.width(12.dp))
-                Column {
-                    Text(
-                        text = displayTitle,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp,
-                        color = Color(0xFF2D332A)
-                    )
-                    Text(
-                        text = "$categoryName • $accountOrBankDisplay",
-                        fontSize = 11.sp,
-                        color = Color(0xFF7C8079)
-                    )
-                }
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(if (isExpense) Color(0xFFFFEBEE) else Color(0xFFE8F5E9)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(text = categoryIcon, fontSize = 18.sp)
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f, fill = true)) {
+                Text(
+                    text = displayTitle,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    color = Color(0xFF2D332A),
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+                Text(
+                    text = "$categoryName • $accountOrBankDisplay",
+                    fontSize = 11.sp,
+                    color = Color(0xFF7C8079),
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
             }
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Spacer(modifier = Modifier.width(8.dp))
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Text(
                     text = if (isPrivacyMasked) "₹ • • •" else "$sign${Money.format(transaction.amountMinor, absolute = true)}",
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp,
-                    color = color
+                    color = color,
+                    softWrap = false,
+                    maxLines = 1
                 )
                 if (onDelete != null) {
                     Spacer(modifier = Modifier.width(8.dp))
@@ -273,19 +321,42 @@ fun AddTransactionDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = Color.White,
+        titleContentColor = Color(0xFF2D332A),
+        textContentColor = Color(0xFF2D332A),
+        modifier = Modifier
+            .widthIn(max = 520.dp)
+            .imePadding(),
         title = { Text("Add Transaction (₹ INR)") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(
                         selected = type == TransactionType.EXPENSE,
                         onClick = { type = TransactionType.EXPENSE },
-                        label = { Text("Expense") }
+                        label = { Text("Expense") },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = Color(0xFF3B7A57),
+                            selectedLabelColor = Color.White,
+                            containerColor = Color(0xFFE4E8E3),
+                            labelColor = Color(0xFF2D332A)
+                        ),
+                        modifier = Modifier.defaultMinSize(minHeight = 48.dp)
                     )
                     FilterChip(
                         selected = type == TransactionType.INCOME,
                         onClick = { type = TransactionType.INCOME },
-                        label = { Text("Income") }
+                        label = { Text("Income") },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = Color(0xFF3B7A57),
+                            selectedLabelColor = Color.White,
+                            containerColor = Color(0xFFE4E8E3),
+                            labelColor = Color(0xFF2D332A)
+                        ),
+                        modifier = Modifier.defaultMinSize(minHeight = 48.dp)
                     )
                 }
 
@@ -294,6 +365,7 @@ fun AddTransactionDialog(
                     onValueChange = { amountText = it },
                     label = { Text("Amount (₹ INR)") },
                     singleLine = true,
+                    colors = appTextFieldColors(),
                     modifier = Modifier.fillMaxWidth()
                 )
 
@@ -302,6 +374,7 @@ fun AddTransactionDialog(
                     onValueChange = { merchant = it },
                     label = { Text("Merchant / Source (e.g. Starbucks, Uber)") },
                     singleLine = true,
+                    colors = appTextFieldColors(),
                     modifier = Modifier.fillMaxWidth()
                 )
 
@@ -310,6 +383,7 @@ fun AddTransactionDialog(
                     onValueChange = { note = it },
                     label = { Text("Notes / Remarks") },
                     singleLine = true,
+                    colors = appTextFieldColors(),
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -322,14 +396,19 @@ fun AddTransactionDialog(
                         onConfirm(type, amt, selectedAccId, selectedCatId, merchant, note)
                     }
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3B7A57))
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3B7A57), contentColor = Color.White),
+                modifier = Modifier.defaultMinSize(minHeight = 48.dp)
             ) {
-                Text("Save Transaction")
+                Text("Save Transaction", color = Color.White, fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
+            TextButton(
+                onClick = onDismiss,
+                colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFF3B7A57)),
+                modifier = Modifier.defaultMinSize(minHeight = 48.dp)
+            ) {
+                Text("Cancel", color = Color(0xFF3B7A57), fontWeight = FontWeight.Bold)
             }
         }
     )

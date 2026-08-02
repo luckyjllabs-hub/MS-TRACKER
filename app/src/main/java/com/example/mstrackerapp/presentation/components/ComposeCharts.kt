@@ -135,7 +135,7 @@ fun MonthlyBarChart(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(140.dp),
+                    .wrapContentHeight(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.Bottom
             ) {
@@ -181,10 +181,10 @@ fun MonthlyBarChart(
 
                         Spacer(modifier = Modifier.height(4.dp))
 
-                        // Bar pairs container
+                        // Bar pairs container (65.dp leaves plenty of room for month text below)
                         Box(
                             modifier = Modifier
-                                .height(90.dp)
+                                .height(65.dp)
                                 .fillMaxWidth(),
                             contentAlignment = Alignment.BottomCenter
                         ) {
@@ -195,7 +195,7 @@ fun MonthlyBarChart(
                                 // Income bar
                                 Box(
                                     modifier = Modifier
-                                        .width(14.dp)
+                                        .width(12.dp)
                                         .fillMaxHeight(incRatio)
                                         .background(
                                             if (inc > 0) Color(0xFF3B7A57) else Color(0xFFE4E8E3),
@@ -205,7 +205,7 @@ fun MonthlyBarChart(
                                 // Expense bar
                                 Box(
                                     modifier = Modifier
-                                        .width(14.dp)
+                                        .width(12.dp)
                                         .fillMaxHeight(expRatio)
                                         .background(
                                             if (exp > 0) Color(0xFFD87D56) else Color(0xFFE4E8E3),
@@ -215,7 +215,7 @@ fun MonthlyBarChart(
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(6.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
 
                         Text(
                             text = monthName,
@@ -291,7 +291,7 @@ fun DailySpendingLineChart(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(130.dp),
+                    .wrapContentHeight(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.Bottom
             ) {
@@ -313,16 +313,16 @@ fun DailySpendingLineChart(
 
                         Spacer(modifier = Modifier.height(4.dp))
 
-                        // Vertical Trend Column
+                        // Vertical Trend Column (65.dp leaves plenty of room for day text below)
                         Box(
                             modifier = Modifier
-                                .height(80.dp)
+                                .height(65.dp)
                                 .fillMaxWidth(),
                             contentAlignment = Alignment.BottomCenter
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .width(16.dp)
+                                    .width(14.dp)
                                     .fillMaxHeight(ratio)
                                     .background(
                                         color = if (amount == maxSpent && maxSpent > 0) Color(0xFFD87D56) else if (amount > 0) Color(0xFF3B7A57) else Color(0xFFE4E8E3),
@@ -331,7 +331,7 @@ fun DailySpendingLineChart(
                             )
                         }
 
-                        Spacer(modifier = Modifier.height(6.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
 
                         Text(
                             text = dayLabel,
