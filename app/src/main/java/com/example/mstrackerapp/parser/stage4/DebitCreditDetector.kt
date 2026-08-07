@@ -20,14 +20,36 @@ object DebitCreditDetector {
     private val INTEREST_CR = Regex("""(?i)\b(?:interest\s*cr(?:edited)?|int(?:erest)?\s*paid\s*to\s*you)\b""")
 
     // Informational Alerts (Balance checks, info notices, mandate setups)
+    // NOTE: Almost every real credit SMS also contains "Available balance is…".
+    // That alone must NOT classify the SMS as JUST_INFO when the account was credited.
     private val INFO_NOTICE = Regex("""(?i)\b(?:avail(?:able)?\s*bal(?:ance)?\s*is|bal(?:ance)?\s*in\s*your\s*a/c|mandate\s*registered|statement\s*generated|info:)\b""")
 
     // Explicit User Account Debit (user's own account moved money out)
     // NOTE: Do NOT match "credited to the beneficiary" — that is a post-NEFT confirmation, not a debit.
     private val USER_ACCOUNT_DEBITED = Regex("""(?i)\b(?:acct\s*XX\d+\s*debited|account\s*XX\d+\s*debited|acc\s*XX\d+\s*debited|debited\s+by|debited\s+for|debited\s+from|spent|paid|withdrawn|withdrawal|wdl|deducted|swiped|used\s+at|sent\s+to|auto[- ]debit|emi\s+deducted|top-up|topup|top\s+up|mandate|payment\s+of|using\s+apay|trf\s+to)\b""")
-    
-    // Explicit User Account Credit (user's own account received money)
-    private val USER_ACCOUNT_CREDITED = Regex("""(?i)\b(?:acct\s*XX\d+\s*is\s+credited|account\s*XX\d+\s*credited|acc\s*XX\d+\s*credited|credited\s+by|credited\s+to\s+(?:hdfc|icici|sbi|axis|kotak|canara|union|bank|your)\s*a/c|credited\s+with|credit\s+alert|transfer\s+from)\b""")
+
+    /**
+     * Explicit User Account Credit (user's own account received money).
+     * Covers common Indian bank templates:
+     * - "A/c *1737 is credited with Rs…"
+     * - "a/c no. XXXX is credited by Rs…"
+     * - "Account XX932 credited:Rs…"
+     * - "your A/c X9642-credited by Rs…"
+     * - "has been credited" / "is credited"
+     */
+    private val USER_ACCOUNT_CREDITED = Regex(
+        """(?i)\b(?:
+            (?:acct|a/?c|account|acc)(?:\s*no\.?)?\s*[*x]*\d+\s*[-:]?\s*(?:is\s+)?credited|
+            (?:acct|a/?c|account|acc)\s*xx+\d+\s*(?:is\s+)?credited|
+            is\s+credited\s+(?:with|by|for)|
+            has\s+been\s+credited|
+            credited\s*(?:[:\-]|with|by|for)|
+            credited\s+to\s+(?:hdfc|icici|sbi|axis|kotak|canara|union|bank|your|a/?c)|
+            credit\s+alert|
+            transfer\s+from
+        )""",
+        RegexOption.COMMENTS
+    )
 
     // HDFC-style inbound: "Received! INR 12,181.00 in HDFC Bank A/c xx0328" / "For IMPS -NAME-"
     private val RECEIVED_IN_ACCOUNT = Regex(
@@ -38,6 +60,9 @@ object DebitCreditDetector {
         )""",
         RegexOption.COMMENTS
     )
+
+    /** UPI debit payee line: "; MERCHANT credited." — not an income credit. */
+    private val UPI_PAYEE_CREDITED = Regex("""(?i);\s*[A-Za-z].{0,40}\s+credited""")
 
     private val ATM = Regex("""(?i)\b(?:atm\s*(?:wdl|cash|debit|withdrawal)|cash\s*(?:withdrawal|withdraw)|withdrawn\s*at|atm\s+wdl)\b""")
     private val EMI = Regex("""(?i)\b(?:emi|auto[- ]debit\s*emi|loan\s*emi|equated\s*monthly)\b""")
@@ -59,34 +84,30 @@ object DebitCreditDetector {
         if (CASH_DEPOSIT.containsMatchIn(body)) return DebitCreditResult(TransactionType.INCOME, SmsTransactionSubType.CASH_DEPOSIT)
         if (INTEREST_CR.containsMatchIn(body)) return DebitCreditResult(TransactionType.INCOME, SmsTransactionSubType.INTEREST_CREDIT)
 
-        // 3. Info / non-movement notices (balance text without own-account debit/credit)
-        if (INFO_NOTICE.containsMatchIn(body) &&
-            !USER_ACCOUNT_DEBITED.containsMatchIn(body) &&
-            !USER_ACCOUNT_CREDITED.containsMatchIn(body) &&
-            !lowerBody.contains("debited")
-        ) {
-            return DebitCreditResult(TransactionType.JUST_INFO, SmsTransactionSubType.INFO_ALERT)
-        }
-
-        // 4. Explicit credit/income on user's own account
-        // Avoid treating "X credited" (UPI payee) or "credited to the beneficiary" as income.
-        val isOwnAccountCredit = USER_ACCOUNT_CREDITED.containsMatchIn(body) ||
-            RECEIVED_IN_ACCOUNT.containsMatchIn(body) ||
-            lowerBody.contains("credited by") ||
-            (lowerBody.contains("credited") &&
-                !lowerBody.contains("debited") &&
-                !lowerBody.contains("card") &&
-                !lowerBody.contains("beneficiary") &&
-                !Regex("""(?i);\s*[A-Za-z].{0,40}\s+credited""").containsMatchIn(body))
+        // 3. Own-account credit BEFORE info/balance short-circuit.
+        // Almost every credit SMS includes "Available balance is…"; that used to force JUST_INFO
+        // whenever the narrow credit regex missed the bank's template — wiping all credits on some devices.
+        val isOwnAccountCredit = isOwnAccountCredit(body, lowerBody)
         if (isOwnAccountCredit) {
             val subType = when {
                 lowerBody.contains("upi") || lowerBody.contains("vpa") -> SmsTransactionSubType.UPI_PAYMENT
                 lowerBody.contains("imps") || lowerBody.contains("neft") || lowerBody.contains("rtgs") ||
-                    lowerBody.contains("transfer from") || RECEIVED_IN_ACCOUNT.containsMatchIn(body) ->
+                    lowerBody.contains("transfer from") || lowerBody.contains("rrn") ||
+                    RECEIVED_IN_ACCOUNT.containsMatchIn(body) ->
                     SmsTransactionSubType.TRANSFER_IN
                 else -> SmsTransactionSubType.CREDIT
             }
             return DebitCreditResult(TransactionType.INCOME, subType)
+        }
+
+        // 4. Info / non-movement notices (balance text without own-account debit/credit)
+        if (INFO_NOTICE.containsMatchIn(body) &&
+            !USER_ACCOUNT_DEBITED.containsMatchIn(body) &&
+            !lowerBody.contains("debited") &&
+            !lowerBody.contains("credited") &&
+            !RECEIVED_IN_ACCOUNT.containsMatchIn(body)
+        ) {
+            return DebitCreditResult(TransactionType.JUST_INFO, SmsTransactionSubType.INFO_ALERT)
         }
 
         // 5. User's account debited / top-up / mandate / paid
@@ -107,5 +128,22 @@ object DebitCreditDetector {
             isDebited -> DebitCreditResult(TransactionType.EXPENSE, SmsTransactionSubType.UPI_PAYMENT)
             else -> DebitCreditResult(TransactionType.EXPENSE, SmsTransactionSubType.DEBIT)
         }
+    }
+
+    private fun isOwnAccountCredit(body: String, lowerBody: String): Boolean {
+        if (lowerBody.contains("beneficiary")) return false
+        if (UPI_PAYEE_CREDITED.containsMatchIn(body)) return false
+        if (USER_ACCOUNT_CREDITED.containsMatchIn(body)) return true
+        if (RECEIVED_IN_ACCOUNT.containsMatchIn(body)) return true
+        if (lowerBody.contains("credited by") || lowerBody.contains("credited with") ||
+            lowerBody.contains("is credited") || lowerBody.contains("has been credited")
+        ) {
+            return !lowerBody.contains("debited")
+        }
+        // Generic "credited" on own-account alerts (not UPI payee / not card-bill)
+        return lowerBody.contains("credited") &&
+            !lowerBody.contains("debited") &&
+            !lowerBody.contains("credited to your card") &&
+            !lowerBody.contains("credited to your credit card")
     }
 }

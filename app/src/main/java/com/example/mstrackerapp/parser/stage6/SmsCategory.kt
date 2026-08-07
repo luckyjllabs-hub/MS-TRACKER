@@ -104,6 +104,7 @@ object SmsCategory {
             SmsTransactionSubType.REFUND -> return result("cat-12", "SUBTYPE")
             SmsTransactionSubType.TRANSFER_IN,
             SmsTransactionSubType.TRANSFER_OUT,
+            SmsTransactionSubType.CREDIT, // inbound person/bank credit without IMPS/NEFT keyword
             SmsTransactionSubType.ATM -> return result("cat-13", "SUBTYPE")
             SmsTransactionSubType.EMI -> return result("cat-9", "SUBTYPE")
             SmsTransactionSubType.UPI_PAYMENT -> {

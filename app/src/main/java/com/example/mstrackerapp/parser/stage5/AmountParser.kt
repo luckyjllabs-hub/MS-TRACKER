@@ -2,9 +2,13 @@ package com.example.mstrackerapp.parser.stage5
 
 object AmountParser {
 
-    // Verb + amount, including HDFC "Received!\nINR 12,181.00"
-    private val VERB_AMOUNT = Regex(
-        """(?i)\b(?:debited|credited|spent|sent|paid|transferred|withdrawn|received|deposited|deducted)[!.,]?\s+(?:for|by|of|with|is|on|to|in|at|rs\.?|inr|₹)*\s*(?:rs\.?|inr|₹)?\s*([\d,]+\.?\d*)"""
+    // Verb + currency amount, including HDFC "Received!\nINR 12,181.00" and ICICI "credited:Rs.456666.00"
+    private val VERB_CURRENCY_AMOUNT = Regex(
+        """(?i)\b(?:debited|credited|spent|sent|paid|transferred|withdrawn|received|deposited|deducted)[!.,:]?\s*(?:(?:for|by|of|with|is|to|in|at)\s+)?(?:rs\.?|inr|₹)\s*([\d,]+\.?\d*)"""
+    )
+    // SBI-style without currency token: "debited by 40.00" / "credited by 6000"
+    private val VERB_BARE_AMOUNT = Regex(
+        """(?i)\b(?:debited|credited|spent|sent|paid|withdrawn|deducted)\s+(?:by|with|for|of)\s+([\d,]+\.?\d*)"""
     )
     // Currency prefix: "INR 1,200" or "Rs. 1,200" or "₹1200" or "Rs 500.00"
     private val CURRENCY_PREFIX = Regex(
@@ -25,9 +29,16 @@ object AmountParser {
     }
 
     fun parseRupees(text: String): Double? {
-        VERB_AMOUNT.find(text)?.groupValues?.get(1)?.replace(",", "")?.toDoubleOrNull()?.let {
+        VERB_CURRENCY_AMOUNT.find(text)?.groupValues?.get(1)?.replace(",", "")?.toDoubleOrNull()?.let {
             if (it > 0) return it
         }
+        VERB_BARE_AMOUNT.find(text)?.groupValues?.get(1)?.replace(",", "")?.toDoubleOrNull()?.let {
+            if (it > 0) return it
+        }
+        // Prefer txn amount over trailing available-balance when both exist:
+        // take the first currency amount that is not immediately after a balance phrase.
+        findTxnCurrencyAmount(text)?.let { if (it > 0) return it }
+
         CURRENCY_PREFIX.find(text)?.groupValues?.get(1)?.replace(",", "")?.toDoubleOrNull()?.let {
             if (it > 0) return it
         }
@@ -36,6 +47,22 @@ object AmountParser {
         }
         DECIMAL_FALLBACK.find(text)?.groupValues?.get(1)?.replace(",", "")?.toDoubleOrNull()?.let {
             if (it > 0) return it
+        }
+        return null
+    }
+
+    private fun findTxnCurrencyAmount(text: String): Double? {
+        val balanceNear = Regex(
+            """(?i)(?:avail(?:able)?|avl|avbl)\s*bal(?:ance)?\s*(?:is|:)?\s*(?:rs\.?|inr|₹)?\s*[\d,]+\.?\d*"""
+        )
+        val balanceSpans = balanceNear.findAll(text).map { it.range }.toList()
+        for (match in CURRENCY_PREFIX.findAll(text)) {
+            val overlapsBalance = balanceSpans.any { bal ->
+                match.range.first >= bal.first && match.range.last <= bal.last
+            }
+            if (overlapsBalance) continue
+            val value = match.groupValues[1].replace(",", "").toDoubleOrNull() ?: continue
+            if (value > 0) return value
         }
         return null
     }

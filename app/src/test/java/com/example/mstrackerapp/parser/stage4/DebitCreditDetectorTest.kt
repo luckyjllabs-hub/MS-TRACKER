@@ -34,4 +34,19 @@ class DebitCreditDetectorTest {
         assertEquals(TransactionType.EXPENSE, result.transactionType)
         assertEquals(SmsTransactionSubType.UPI_PAYMENT, result.subType)
     }
+
+    @Test
+    fun `available balance does not turn own-account credit into info`() {
+        val body = "Your A/c *1737 is credited with Rs.15000.00 on 31-07-26 by SHWETANK CHOUDHARY. Available balance is Rs. 18025.20 - Indian Bank"
+        val result = DebitCreditDetector.detect(body)
+        assertEquals(TransactionType.INCOME, result.transactionType)
+    }
+
+    @Test
+    fun `icici credited colon form is income despite available balance`() {
+        val body = "ICICI Bank Account XX932 credited:Rs.456666.00 on 31-Jul-26. Info NEFT-HSBCN21271399500-SAMSUN. Available Balance is Rs. 5677788"
+        val result = DebitCreditDetector.detect(body)
+        assertEquals(TransactionType.INCOME, result.transactionType)
+        assertEquals(SmsTransactionSubType.TRANSFER_IN, result.subType)
+    }
 }

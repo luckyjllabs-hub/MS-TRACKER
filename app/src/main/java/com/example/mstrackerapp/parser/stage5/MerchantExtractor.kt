@@ -11,14 +11,19 @@ object MerchantExtractor {
     private val PERSON_MERCHANT_PATTERNS = listOf(
         // ICICI UPI: "; YASHIKA CHICKEN credited."
         Regex("""(?i);\s*([A-Za-z0-9][A-Za-z0-9\s&'.-]{2,40})\s+credited"""),
+        // Inbound credit: "credited with/by Rs… on DATE by PERSON"
+        Regex("""(?i)\bcredited\s+(?:with|by)\s+(?:rs\.?|inr|₹)\s*[\d,]+\.?\d*.{0,48}?\bby\s+([A-Z][A-Za-z][A-Za-z.\s]{1,40}?)(?:\.|\s+RRN|\s+IMPS|\s+Ref|\s+UPI|\s+NEFT|\s+\(|$)"""),
+        // "transfer from PERSON"
+        Regex("""(?i)\btransfer\s+from\s+([A-Z][A-Za-z][A-Za-z.\s]{1,40}?)(?:\s+Ref|\s+UPI|\s+on\b|\.|$)"""),
         // POS / spent at
         Regex("""(?i)\b(?:pos\s+(?:txn\s+)?at|at|@|spent\s+at|used\s+at|spent\s+on|towards|info:)\s+([A-Za-z0-9][A-Za-z0-9\s&'.-]{2,40})(?:\s*\.|\s+on\s+\d|\s+via|\s+ref|\s+avail|$)"""),
         // from person / VPA
         Regex("""(?i)\bfrom\s+(?:VPA\s+)?([A-Za-z0-9][A-Za-z0-9\s@&'.-]{2,40})(?:\s*\.|\s+on\s+\d|\s+via|\s+UPI|\s+ref|$)"""),
         // paid / transferred to
         Regex("""(?i)\b(?:paid\s+to|sent\s+to|transferred\s+to|trf\s+to|to\s+VPA)\s+([A-Za-z0-9][A-Za-z0-9\s@&'.-]{2,40})(?:\s*\.|\s+on\s+\d|\s+via|\s+UPI|\s+ref|$)"""),
-        // IMPS inbound: "For IMPS -AMITKUMAR-"
+        // IMPS/NEFT inbound name: "For IMPS -AMITKUMAR-" or "NEFT-HSBCN…-SAMSUN"
         Regex("""(?i)\b(?:IMPS|NEFT|RTGS)\s*[-/]\s*([A-Za-z][A-Za-z0-9\s&'.-]{2,30})"""),
+        Regex("""(?i)\b(?:IMPS|NEFT|RTGS)[-/][A-Z0-9]+[-/]([A-Za-z][A-Za-z]+)"""),
         // InfoBIL / Info ACH
         Regex("""(?i)\bInfo(?:BIL)?[*:\s]+([A-Za-z][A-Za-z0-9\s&*.-]{2,30})"""),
         Regex("""(?i)(?:merchant|store):\s*([A-Za-z0-9][A-Za-z0-9\s&'.-]{2,25})""")
@@ -35,7 +40,8 @@ object MerchantExtractor {
         "CRED", "CALL", "SMS", "BLOCK", "DISPUTE", "YOUR", "ACCOUNT", "A/C", "ACCT", "BANK",
         "REF", "UPI", "DEBIT", "CREDIT", "PREPAID", "CARD", "PREPAID CARD", "CREDIT CARD",
         "DEBIT CARD", "ICICI BANK PREPAID", "HDFC BANK", "SBI", "SUCCESSFUL", "AVBL", "BAL",
-        "NEFT", "IMPS", "RTGS", "INFT", "ACH", "INFO"
+        "NEFT", "IMPS", "RTGS", "INFT", "ACH", "INFO", "A/C LINKED", "AC LINKED", "LINKED",
+        "MOBILE", "NO", "RS"
     )
 
     fun extractMerchant(body: String, extraAliases: Map<String, String> = emptyMap()): String {
@@ -115,6 +121,7 @@ object MerchantExtractor {
         val nameUpper = name.uppercase()
         if (name.length < 3) return null
         if (IGNORE_WORDS.contains(nameUpper)) return null
+        if (nameUpper.startsWith("A/C") || nameUpper.startsWith("ACCT") || nameUpper.startsWith("ACCOUNT")) return null
         if (nameUpper.contains("PREPAID CARD") || nameUpper.contains("CREDIT CARD") || nameUpper.contains("DEBIT CARD")) return null
         if (name.all { it.isDigit() || it == 'X' || it == 'x' }) return null
         return nameUpper.take(32)

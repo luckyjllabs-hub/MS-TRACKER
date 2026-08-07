@@ -23,6 +23,7 @@ object BankSmsParser {
         "Union Bank" to Regex("""Union\s*Bank|UBOI""", RegexOption.IGNORE_CASE),
         "IDFC FIRST" to Regex("""IDFC|IDFCFB""", RegexOption.IGNORE_CASE),
         "IndusInd Bank" to Regex("""IndusInd|INDUSB""", RegexOption.IGNORE_CASE),
+        "Indian Bank" to Regex("""\bIndian\s*Bank\b|IDIBNK|\bIDIB\b""", RegexOption.IGNORE_CASE),
         "Federal Bank" to Regex("""Federal|FEDBNK""", RegexOption.IGNORE_CASE),
         "RBL Bank" to Regex("""RBL|RBLBNK""", RegexOption.IGNORE_CASE),
         "YES Bank" to Regex("""YES\s*Bank|YESBNK""", RegexOption.IGNORE_CASE),

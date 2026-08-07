@@ -16,6 +16,7 @@ object BankParser {
         "IDFCBK" to "IDFC FIRST Bank",
         "RBLBNK" to "RBL Bank",
         "INDBNK" to "IndusInd Bank", "INDUSB" to "IndusInd Bank", "INDUSA" to "IndusInd Bank",
+        "IDIBNK" to "Indian Bank", "INDIAN" to "Indian Bank", "IDIB" to "Indian Bank",
         "FEDBNK" to "Federal Bank",
         "CENTBK" to "Central Bank",
         "CITIBK" to "Citi Bank", "CITI" to "Citi Bank",
@@ -37,6 +38,8 @@ object BankParser {
         "Kotak Bank" to Regex("""Kotak\s*(?:Mahindra)?\s*Bank""", RegexOption.IGNORE_CASE),
         "YES Bank" to Regex("""YES\s*Bank""", RegexOption.IGNORE_CASE),
         "IDFC FIRST Bank" to Regex("""IDFC\s*(?:FIRST)?\s*Bank""", RegexOption.IGNORE_CASE),
+        "Indian Bank" to Regex("""\bIndian\s*Bank\b""", RegexOption.IGNORE_CASE),
+        "IndusInd Bank" to Regex("""IndusInd""", RegexOption.IGNORE_CASE),
         "Paytm" to Regex("""Paytm""", RegexOption.IGNORE_CASE),
         "PhonePe" to Regex("""PhonePe""", RegexOption.IGNORE_CASE),
         "Google Pay" to Regex("""Google\s*Pay|GPay""", RegexOption.IGNORE_CASE)

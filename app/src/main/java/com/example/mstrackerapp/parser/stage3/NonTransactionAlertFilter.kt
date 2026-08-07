@@ -61,19 +61,21 @@ object NonTransactionAlertFilter {
 
     private val ACCOUNT_MOVEMENT = Regex(
         """(?i)\b(?:
-            (?:acct|a/?c|account|acc)\s*xx?\d+\s*(?:is\s+)?(?:debited|credited)|
+            (?:acct|a/?c|account|acc)(?:\s*no\.?)?\s*[*x]*\d+\s*[-:]?\s*(?:is\s+)?(?:debited|credited)|
+            (?:acct|a/?c|account|acc)\s*xx+\d+\s*(?:is\s+)?(?:debited|credited)|
             debited\s+(?:for|by|from|rs|inr|₹)|
-            credited\s+(?:with|by|to\s+(?:your|hdfc|icici|sbi|axis))|
+            (?:is\s+|has\s+been\s+)?credited\s*(?:[:\-]|with|by|for)|
+            credited\s+to\s+(?:your|hdfc|icici|sbi|axis|a/?c)|
             (?:inr|rs\.?|₹)\s*[\d,]+\.?\d*\s+(?:debited|credited|deposited|spent|withdrawn)|
-            (?:inr|rs\.?|₹)\s*[\d,]+\.?\d*\s+in\s+[\w\s]+(?:bank\s+)?a/?c|
-            \breceived[!.,]?\b|
+            (?:inr|rs\.?|₹)\s*[\d,]+\.?\d*\s+in\s+(?!your\b)[\w\s]*bank\s+a/?c|
+            \breceived[!.,]?|
             credit\s+alert|
             deposited\s+in|
             spent|withdrawn|cash\s+withdrawal|
             paid\s+to|sent\s+to|trf\s+to|
             for\s+(?:imps|neft|rtgs)\b|
             interest\s+paid
-        )\b""",
+        )""",
         RegexOption.COMMENTS
     )
 

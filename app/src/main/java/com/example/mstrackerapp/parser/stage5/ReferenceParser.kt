@@ -2,7 +2,7 @@ package com.example.mstrackerapp.parser.stage5
 
 object ReferenceParser {
     private val REF_PATTERN = Regex(
-        """(?i)(?:Ref(?:erence)?\s*(?:No\.?|Id|Number)?|Txn\s*(?:ID|Ref)?|URN|UPI\s*Ref(?:No)?\.?|IMPS\s*Ref|NEFT\s*Ref)\s*[:\.\-]?\s*([A-Za-z0-9]{6,20})"""
+        """(?i)(?:Ref(?:erence)?\s*(?:No\.?|Id|Number)?|Txn\s*(?:ID|Ref)?|URN|UPI\s*Ref(?:No)?\.?|IMPS\s*Ref|NEFT\s*Ref|RRN)\s*[:\.\-#]?\s*([A-Za-z0-9]{6,20})"""
     )
     private val UPI_ID_PATTERN = Regex(
         """([a-zA-Z0-9.\-_+]+@[a-zA-Z0-9]+)"""

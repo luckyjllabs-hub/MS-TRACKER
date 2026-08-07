@@ -18,6 +18,7 @@ object MessageTypeClassifier {
         "IDFCBK", "IDFC",
         "RBLBNK", "RBL",
         "INDBNK", "INDUSB", "INDUSA", "INDUSO",
+        "IDIBNK", "IDIB", "INDIAN",
         "FEDBNK", "FEDERAL",
         "UBIKOB", "UNIONB",
         "CENTBK", "CITIBK", "CITI", "SCBANK",

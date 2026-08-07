@@ -71,4 +71,18 @@ class NonTransactionAlertFilterTest {
         assertFalse(NonTransactionAlertFilter.isNonTransactionAlert(body))
         assertTrue(SuccessDetector.isSuccessful(body))
     }
+
+    @Test
+    fun `indian bank credit with available balance is a transaction`() {
+        val body = "Your A/c *1737 is credited with Rs.15000.00 on 31-07-26 by SHWETANK CHOUDHARY. RRN 621217694961. Available balance is Rs. 18025.20 - Indian Bank"
+        assertFalse(NonTransactionAlertFilter.isNonTransactionAlert(body))
+        assertTrue(SuccessDetector.isSuccessful(body))
+    }
+
+    @Test
+    fun `credited Rs with available balance is still a transaction`() {
+        val body = "Your A/c XX1737 is credited Rs.15000.00 on 31-07-26. Available balance is Rs. 18025.20"
+        assertFalse(NonTransactionAlertFilter.isNonTransactionAlert(body))
+        assertTrue(SuccessDetector.isSuccessful(body))
+    }
 }
