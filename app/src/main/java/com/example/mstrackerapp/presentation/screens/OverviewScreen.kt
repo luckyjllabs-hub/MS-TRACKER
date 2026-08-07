@@ -538,7 +538,7 @@ fun OverviewScreen(uiState: MSTrackerUiState, viewModel: MSTrackerViewModel) {
                             transaction = tx,
                             accountName = account?.name ?: "Account",
                             categoryName = category?.name ?: "Category",
-                            categoryIcon = category?.icon ?: "ðŸ“¦",
+                            categoryIcon = category?.icon ?: "\uD83D\uDCE6",
                             isPrivacyMasked = uiState.isPrivacyMasked,
                             onDelete = { viewModel.deleteTransaction(tx.id) }
                         )
@@ -592,7 +592,7 @@ fun EditableTransactionDetailDialog(
     // Custom Category Input Mode
     var isInputtingNewCategory by remember { mutableStateOf(false) }
     var newCategoryName by remember { mutableStateOf("") }
-    var newCategoryIcon by remember { mutableStateOf("âœ¨") }
+    var newCategoryIcon by remember { mutableStateOf("\u2728") }
 
     val selectedCategory = categories.find { it.id == selectedCategoryId } ?: categories.firstOrNull()
 
@@ -648,10 +648,10 @@ fun EditableTransactionDetailDialog(
                 ) {
                     OutlinedTextField(
                         value = when (selectedType) {
-                            TransactionType.EXPENSE -> "â¬‡ DEBIT / EXPENSE (-)"
-                            TransactionType.INCOME -> "â¬† CREDIT / INCOME (+)"
-                            TransactionType.TRANSFER -> "ðŸ”„ TRANSFER"
-                            TransactionType.JUST_INFO -> "â„¹ï¸ JUST INFO / ALERT (Excluded)"
+                            TransactionType.EXPENSE -> "\u2B07 DEBIT / EXPENSE (-)"
+                            TransactionType.INCOME -> "\u2B06 CREDIT / INCOME (+)"
+                            TransactionType.TRANSFER -> "\uD83D\uDD04 TRANSFER"
+                            TransactionType.JUST_INFO -> "\u2139\uFE0F JUST INFO / ALERT (Excluded)"
                         },
                         onValueChange = {},
                         readOnly = true,
@@ -668,28 +668,28 @@ fun EditableTransactionDetailDialog(
                         onDismissRequest = { typeDropdownExpanded = false }
                     ) {
                         DropdownMenuItem(
-                            text = { Text("â¬‡ DEBIT / EXPENSE (-)", color = Color(0xFFC62828), fontWeight = FontWeight.Bold) },
+                            text = { Text("\u2B07 DEBIT / EXPENSE (-)", color = Color(0xFFC62828), fontWeight = FontWeight.Bold) },
                             onClick = {
                                 selectedType = TransactionType.EXPENSE
                                 typeDropdownExpanded = false
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("â¬† CREDIT / INCOME (+)", color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold) },
+                            text = { Text("\u2B06 CREDIT / INCOME (+)", color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold) },
                             onClick = {
                                 selectedType = TransactionType.INCOME
                                 typeDropdownExpanded = false
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("ðŸ”„ TRANSFER", color = Color(0xFF2E5B88), fontWeight = FontWeight.Bold) },
+                            text = { Text("\uD83D\uDD04 TRANSFER", color = Color(0xFF2E5B88), fontWeight = FontWeight.Bold) },
                             onClick = {
                                 selectedType = TransactionType.TRANSFER
                                 typeDropdownExpanded = false
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("â„¹ï¸ JUST INFO / ALERT (Excluded)", color = Color(0xFF7C8079), fontWeight = FontWeight.Bold) },
+                            text = { Text("\u2139\uFE0F JUST INFO / ALERT (Excluded)", color = Color(0xFF7C8079), fontWeight = FontWeight.Bold) },
                             onClick = {
                                 selectedType = TransactionType.JUST_INFO
                                 typeDropdownExpanded = false
@@ -706,7 +706,7 @@ fun EditableTransactionDetailDialog(
                     onExpandedChange = { categoryDropdownExpanded = !categoryDropdownExpanded }
                 ) {
                     OutlinedTextField(
-                        value = "${selectedCategory?.icon ?: "ðŸ“¦"} ${selectedCategory?.name ?: "Select Category"}",
+                        value = "${selectedCategory?.icon ?: "\uD83D\uDCE6"} ${selectedCategory?.name ?: "Select Category"}",
                         onValueChange = {},
                         readOnly = true,
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = categoryDropdownExpanded) },
@@ -727,7 +727,7 @@ fun EditableTransactionDetailDialog(
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(Icons.Default.Add, contentDescription = null, tint = Color(0xFF3B7A57), modifier = Modifier.size(18.dp))
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("âž• Input / Create New Category...", color = Color(0xFF3B7A57), fontWeight = FontWeight.Bold)
+                                    Text("Input / Create New Category...", color = Color(0xFF3B7A57), fontWeight = FontWeight.Bold)
                                 }
                             },
                             onClick = {

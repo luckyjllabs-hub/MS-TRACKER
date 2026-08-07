@@ -26,10 +26,10 @@ object Money {
         }
 
         val formattedWithSymbol = formatter.format(rupees)
-        val formattedNumber = formattedWithSymbol.replace("₹", "").replace("-", "").trim()
+        val formattedNumber = formattedWithSymbol.replace("\u20B9", "").replace("-", "").trim()
 
         return if (showSymbol) {
-            "${prefix}₹$formattedNumber"
+            "${prefix}\u20B9$formattedNumber"
         } else {
             "${prefix}$formattedNumber"
         }
