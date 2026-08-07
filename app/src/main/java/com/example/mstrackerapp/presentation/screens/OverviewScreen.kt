@@ -1,6 +1,10 @@
-package com.example.mstrackerapp.presentation.screens
+﻿package com.example.mstrackerapp.presentation.screens
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
+import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -19,6 +23,8 @@ import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
@@ -42,6 +48,7 @@ import com.example.mstrackerapp.presentation.components.PeriodDropdown
 import com.example.mstrackerapp.presentation.components.PieChartSlice
 import com.example.mstrackerapp.presentation.components.TransactionRowItem
 import com.example.mstrackerapp.presentation.components.TypeSegmentedControl
+import com.example.mstrackerapp.utils.CategoryIcons
 import com.example.mstrackerapp.utils.CsvExporter
 import com.example.mstrackerapp.utils.Money
 
@@ -233,7 +240,7 @@ fun OverviewScreen(uiState: MSTrackerUiState, viewModel: MSTrackerViewModel) {
                     }
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = if (uiState.isPrivacyMasked) "••••••••" else Money.format(uiState.netWorthMinor),
+                        text = if (uiState.isPrivacyMasked) "â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" else Money.format(uiState.netWorthMinor),
                         fontSize = 32.sp,
                         fontWeight = FontWeight.Bold,
                         color = netWorthColor
@@ -252,7 +259,7 @@ fun OverviewScreen(uiState: MSTrackerUiState, viewModel: MSTrackerViewModel) {
                                 Text("Income", fontSize = 11.sp, color = Color.White.copy(alpha = 0.8f))
                             }
                             Text(
-                                text = if (uiState.isPrivacyMasked) "••••" else Money.format(uiState.totalIncomeMinor),
+                                text = if (uiState.isPrivacyMasked) "â€¢â€¢â€¢â€¢" else Money.format(uiState.totalIncomeMinor),
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFFC8E6C9)
@@ -266,7 +273,7 @@ fun OverviewScreen(uiState: MSTrackerUiState, viewModel: MSTrackerViewModel) {
                                 Text("Expense", fontSize = 11.sp, color = Color.White.copy(alpha = 0.8f))
                             }
                             Text(
-                                text = if (uiState.isPrivacyMasked) "••••" else Money.format(uiState.totalExpenseMinor),
+                                text = if (uiState.isPrivacyMasked) "â€¢â€¢â€¢â€¢" else Money.format(uiState.totalExpenseMinor),
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFFFFCDD2)
@@ -280,7 +287,7 @@ fun OverviewScreen(uiState: MSTrackerUiState, viewModel: MSTrackerViewModel) {
                                 Text("Savings", fontSize = 11.sp, color = Color.White.copy(alpha = 0.8f))
                             }
                             Text(
-                                text = if (uiState.isPrivacyMasked) "••••" else Money.format(savingsMinor),
+                                text = if (uiState.isPrivacyMasked) "â€¢â€¢â€¢â€¢" else Money.format(savingsMinor),
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = savingsColor
@@ -291,12 +298,12 @@ fun OverviewScreen(uiState: MSTrackerUiState, viewModel: MSTrackerViewModel) {
             }
         }
 
-        // 2. Category Pie Chart — reflects selected period
+        // 2. Category Pie Chart â€” reflects selected period
         if (pieSlices.isNotEmpty()) {
             item {
                 CategoryPieChart(
                     slices = pieSlices,
-                    title = "Category Distribution · ${uiState.selectedFilter}"
+                    title = "Category Distribution Â· ${uiState.selectedFilter}"
                 )
             }
         }
@@ -458,7 +465,7 @@ fun OverviewScreen(uiState: MSTrackerUiState, viewModel: MSTrackerViewModel) {
                     }
                 }
 
-                // Type Tabs: All | Credit | Debit | Just Info — placed here for easy thumb access
+                // Type Tabs: All | Credit | Debit | Just Info â€” placed here for easy thumb access
                 TypeSegmentedControl(
                     options = typeTabOptions,
                     selected = selectedTypeTab,
@@ -466,7 +473,7 @@ fun OverviewScreen(uiState: MSTrackerUiState, viewModel: MSTrackerViewModel) {
                 )
 
                 Text(
-                    text = "${filteredTransactions.size} transactions · $selectedTypeTab",
+                    text = "${filteredTransactions.size} transactions Â· $selectedTypeTab",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = Color(0xFF555A52)
@@ -538,7 +545,7 @@ fun OverviewScreen(uiState: MSTrackerUiState, viewModel: MSTrackerViewModel) {
                             transaction = tx,
                             accountName = account?.name ?: "Account",
                             categoryName = category?.name ?: "Category",
-                            categoryIcon = category?.icon ?: "\uD83D\uDCE6",
+                            categoryIcon = CategoryIcons.display(category?.icon, category?.name ?: "Category"),
                             isPrivacyMasked = uiState.isPrivacyMasked,
                             onDelete = { viewModel.deleteTransaction(tx.id) }
                         )
@@ -555,6 +562,13 @@ fun OverviewScreen(uiState: MSTrackerUiState, viewModel: MSTrackerViewModel) {
             categories = uiState.categories,
             onAddNewCategory = { newName, newIcon ->
                 viewModel.addCategory(newName, newIcon)
+            },
+            onDeleteCategory = { catId ->
+                viewModel.deleteCategory(catId)
+            },
+            onDeleteTransaction = {
+                viewModel.deleteTransaction(selectedTxForPopup!!.id)
+                selectedTxForPopup = null
             },
             onDismiss = { selectedTxForPopup = null },
             onSave = { updatedTx, newType, newCatId ->
@@ -580,19 +594,22 @@ fun EditableTransactionDetailDialog(
     transaction: Transaction,
     categories: List<Category>,
     onAddNewCategory: (String, String) -> String,
+    onDeleteCategory: (String) -> Unit = {},
+    onDeleteTransaction: () -> Unit = {},
     onDismiss: () -> Unit,
     onSave: (Transaction, TransactionType, String) -> Unit
 ) {
+    val context = LocalContext.current
     var selectedType by remember { mutableStateOf(transaction.type) }
     var selectedCategoryId by remember { mutableStateOf(transaction.categoryId) }
 
     var typeDropdownExpanded by remember { mutableStateOf(false) }
     var categoryDropdownExpanded by remember { mutableStateOf(false) }
+    var confirmDeleteTx by remember { mutableStateOf(false) }
 
-    // Custom Category Input Mode
     var isInputtingNewCategory by remember { mutableStateOf(false) }
     var newCategoryName by remember { mutableStateOf("") }
-    var newCategoryIcon by remember { mutableStateOf("\u2728") }
+    var newCategoryIcon by remember { mutableStateOf("") }
 
     val selectedCategory = categories.find { it.id == selectedCategoryId } ?: categories.firstOrNull()
 
@@ -615,7 +632,6 @@ fun EditableTransactionDetailDialog(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                // Amount & Merchant Header
                 Surface(
                     color = Color(0xFFF4F3EF),
                     shape = RoundedCornerShape(12.dp),
@@ -640,7 +656,6 @@ fun EditableTransactionDetailDialog(
                     }
                 }
 
-                // 1. Transaction Type Combo Box
                 Text("Transaction Type Combo Pick:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF555A52))
                 ExposedDropdownMenuBox(
                     expanded = typeDropdownExpanded,
@@ -656,72 +671,51 @@ fun EditableTransactionDetailDialog(
                         onValueChange = {},
                         readOnly = true,
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = typeDropdownExpanded) },
-                        modifier = Modifier
-                            .menuAnchor()
-                            .fillMaxWidth(),
+                        modifier = Modifier.menuAnchor().fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         colors = com.example.mstrackerapp.presentation.components.appTextFieldColors()
                     )
-
                     ExposedDropdownMenu(
                         expanded = typeDropdownExpanded,
                         onDismissRequest = { typeDropdownExpanded = false }
                     ) {
                         DropdownMenuItem(
                             text = { Text("\u2B07 DEBIT / EXPENSE (-)", color = Color(0xFFC62828), fontWeight = FontWeight.Bold) },
-                            onClick = {
-                                selectedType = TransactionType.EXPENSE
-                                typeDropdownExpanded = false
-                            }
+                            onClick = { selectedType = TransactionType.EXPENSE; typeDropdownExpanded = false }
                         )
                         DropdownMenuItem(
                             text = { Text("\u2B06 CREDIT / INCOME (+)", color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold) },
-                            onClick = {
-                                selectedType = TransactionType.INCOME
-                                typeDropdownExpanded = false
-                            }
+                            onClick = { selectedType = TransactionType.INCOME; typeDropdownExpanded = false }
                         )
                         DropdownMenuItem(
                             text = { Text("\uD83D\uDD04 TRANSFER", color = Color(0xFF2E5B88), fontWeight = FontWeight.Bold) },
-                            onClick = {
-                                selectedType = TransactionType.TRANSFER
-                                typeDropdownExpanded = false
-                            }
+                            onClick = { selectedType = TransactionType.TRANSFER; typeDropdownExpanded = false }
                         )
                         DropdownMenuItem(
                             text = { Text("\u2139\uFE0F JUST INFO / ALERT (Excluded)", color = Color(0xFF7C8079), fontWeight = FontWeight.Bold) },
-                            onClick = {
-                                selectedType = TransactionType.JUST_INFO
-                                typeDropdownExpanded = false
-                            }
+                            onClick = { selectedType = TransactionType.JUST_INFO; typeDropdownExpanded = false }
                         )
                     }
                 }
 
-                // 2. Category Combo Box with "Create New Category" Option
                 Text("Category Type Combo Pick:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF555A52))
-                
                 ExposedDropdownMenuBox(
                     expanded = categoryDropdownExpanded,
                     onExpandedChange = { categoryDropdownExpanded = !categoryDropdownExpanded }
                 ) {
                     OutlinedTextField(
-                        value = "${selectedCategory?.icon ?: "\uD83D\uDCE6"} ${selectedCategory?.name ?: "Select Category"}",
+                        value = "${CategoryIcons.display(selectedCategory?.icon, selectedCategory?.name ?: "Category")} ${selectedCategory?.name ?: "Select Category"}",
                         onValueChange = {},
                         readOnly = true,
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = categoryDropdownExpanded) },
-                        modifier = Modifier
-                            .menuAnchor()
-                            .fillMaxWidth(),
+                        modifier = Modifier.menuAnchor().fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         colors = com.example.mstrackerapp.presentation.components.appTextFieldColors()
                     )
-
                     ExposedDropdownMenu(
                         expanded = categoryDropdownExpanded,
                         onDismissRequest = { categoryDropdownExpanded = false }
                     ) {
-                        // Option to Input / Create New Category
                         DropdownMenuItem(
                             text = {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -732,16 +726,43 @@ fun EditableTransactionDetailDialog(
                             },
                             onClick = {
                                 isInputtingNewCategory = true
+                                newCategoryIcon = CategoryIcons.letterFor(newCategoryName.ifBlank { "N" })
                                 categoryDropdownExpanded = false
                             }
                         )
-
                         HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-
-                        // List all existing categories from DB
                         categories.forEach { category ->
                             DropdownMenuItem(
-                                text = { Text("${category.icon} ${category.name}", fontSize = 14.sp) },
+                                text = {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            "${CategoryIcons.display(category.icon, category.name)} ${category.name}",
+                                            fontSize = 14.sp,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        IconButton(
+                                            onClick = {
+                                                if (selectedCategoryId == category.id) {
+                                                    selectedCategoryId = categories.firstOrNull { it.id != category.id }?.id
+                                                        ?: selectedCategoryId
+                                                }
+                                                onDeleteCategory(category.id)
+                                            },
+                                            modifier = Modifier.size(32.dp)
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Delete,
+                                                contentDescription = "Delete category",
+                                                tint = Color(0xFFC62828),
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    }
+                                },
                                 onClick = {
                                     selectedCategoryId = category.id
                                     isInputtingNewCategory = false
@@ -752,7 +773,6 @@ fun EditableTransactionDetailDialog(
                     }
                 }
 
-                // Inline New Category Input Form (if user tapped "Input / Create New Category")
                 if (isInputtingNewCategory) {
                     Surface(
                         color = Color(0xFFE8F5E9),
@@ -761,31 +781,38 @@ fun EditableTransactionDetailDialog(
                     ) {
                         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text("Input New Custom Category:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2E7D32))
-                            
+                            Text("Leave icon blank to use the first letter of the name.", fontSize = 10.sp, color = Color(0xFF555A52))
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 OutlinedTextField(
                                     value = newCategoryIcon,
-                                    onValueChange = { newCategoryIcon = it },
+                                    onValueChange = { newCategoryIcon = it.take(2) },
                                     label = { Text("Icon") },
+                                    placeholder = { Text(CategoryIcons.letterFor(newCategoryName.ifBlank { "N" })) },
                                     modifier = Modifier.width(70.dp),
                                     singleLine = true
                                 )
                                 OutlinedTextField(
                                     value = newCategoryName,
-                                    onValueChange = { newCategoryName = it },
+                                    onValueChange = {
+                                        newCategoryName = it
+                                        if (newCategoryIcon.isBlank() || CategoryIcons.isBroken(newCategoryIcon)) {
+                                            newCategoryIcon = CategoryIcons.letterFor(it.ifBlank { "N" })
+                                        }
+                                    },
                                     label = { Text("Category Name") },
                                     placeholder = { Text("e.g. Gaming, Pets") },
                                     modifier = Modifier.weight(1f),
                                     singleLine = true
                                 )
                             }
-
                             Button(
                                 onClick = {
                                     if (newCategoryName.isNotBlank()) {
                                         val createdId = onAddNewCategory(newCategoryName, newCategoryIcon)
                                         selectedCategoryId = createdId
                                         isInputtingNewCategory = false
+                                        newCategoryName = ""
+                                        newCategoryIcon = ""
                                     }
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)),
@@ -797,8 +824,25 @@ fun EditableTransactionDetailDialog(
                     }
                 }
 
-                // 3. Full Raw Received Bank SMS Text
-                Text("Original Received Bank SMS Text:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF555A52))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Original Received Bank SMS Text:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF555A52))
+                    TextButton(
+                        onClick = {
+                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                            clipboard.setPrimaryClip(ClipData.newPlainText("SMS Body", rawTextToShow))
+                            Toast.makeText(context, "Copied SMS text", Toast.LENGTH_SHORT).show()
+                        },
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                    ) {
+                        Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color(0xFF3B7A57))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Copy", fontSize = 11.sp, color = Color(0xFF3B7A57))
+                    }
+                }
                 Surface(
                     color = Color(0xFF1E241C),
                     shape = RoundedCornerShape(10.dp),
@@ -815,19 +859,47 @@ fun EditableTransactionDetailDialog(
             }
         },
         confirmButton = {
-            Button(
-                onClick = { onSave(transaction, selectedType, selectedCategoryId) },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3B7A57))
-            ) {
-                Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("Save & Update")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(
+                    onClick = { confirmDeleteTx = true },
+                    colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFC62828))
+                ) {
+                    Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Delete")
+                }
+                Button(
+                    onClick = { onSave(transaction, selectedType, selectedCategoryId) },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3B7A57))
+                ) {
+                    Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Save & Update")
+                }
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
+            TextButton(onClick = onDismiss) { Text("Cancel") }
         }
     )
+
+    if (confirmDeleteTx) {
+        AlertDialog(
+            onDismissRequest = { confirmDeleteTx = false },
+            title = { Text("Delete transaction?") },
+            text = { Text("This removes \"${transaction.merchant}\" (${Money.format(transaction.amountMinor)}) from your ledger.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        confirmDeleteTx = false
+                        onDeleteTransaction()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828))
+                ) { Text("Delete") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDeleteTx = false }) { Text("Cancel") }
+            }
+        )
+    }
 }

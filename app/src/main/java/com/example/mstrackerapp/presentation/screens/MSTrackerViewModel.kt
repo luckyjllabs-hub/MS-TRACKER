@@ -14,6 +14,8 @@ data class MSTrackerUiState(
     val accounts: List<Account> = emptyList(),
     val categories: List<Category> = emptyList(),
     val transactions: List<Transaction> = emptyList(),
+    /** Unfiltered ledger — Finance accounts must use this, not date-filtered [transactions]. */
+    val allTransactions: List<Transaction> = emptyList(),
     val goals: List<Goal> = emptyList(),
     val smsQueue: List<SmsQueueItem> = emptyList(),
     val netWorthMinor: Long = 0L,
@@ -67,6 +69,7 @@ class MSTrackerViewModel(private val repository: MSTrackerRepository) : ViewMode
             accounts = data.accounts,
             categories = data.categories,
             transactions = filteredTx,
+            allTransactions = data.transactions,
             goals = data.goals,
             smsQueue = data.smsQueue,
             netWorthMinor = netWorth,
@@ -134,8 +137,14 @@ class MSTrackerViewModel(private val repository: MSTrackerRepository) : ViewMode
         repository.updateCategoryLimit(categoryId, limitRupees)
     }
 
-    fun addCategory(name: String, icon: String = "✨"): String {
-        return repository.addCategory(name, icon)
+    fun addCategory(name: String, icon: String = ""): String {
+        val safeName = name.trim()
+        val safeIcon = com.example.mstrackerapp.utils.CategoryIcons.sanitizeForStorage(icon, safeName)
+        return repository.addCategory(safeName, safeIcon)
+    }
+
+    fun deleteCategory(categoryId: String) {
+        repository.deleteCategory(categoryId)
     }
 
     private data class DataSnapshot(

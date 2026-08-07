@@ -28,7 +28,8 @@ interface MSTrackerRepository {
     fun deleteSmsItem(smsId: String)
     fun deleteTransaction(transactionId: String)
     fun updateCategoryLimit(categoryId: String, limitRupees: Double)
-    fun addCategory(name: String, icon: String = "✨"): String
+    fun addCategory(name: String, icon: String = ""): String
+    fun deleteCategory(categoryId: String)
     fun togglePrivacyMask()
 }
 
@@ -280,15 +281,26 @@ class DefaultMSTrackerRepository(context: Context? = null) : MSTrackerRepository
 
     override fun addCategory(name: String, icon: String): String {
         val newId = "cat-" + java.util.UUID.randomUUID().toString().take(8)
+        val safeIcon = com.example.mstrackerapp.utils.CategoryIcons.sanitizeForStorage(icon, name)
         if (roomRepo != null) {
             scope.launch {
-                roomRepo?.addCategory(name, icon)
+                roomRepo?.addCategory(name, safeIcon)
             }
         } else {
-            val newCat = Category(id = newId, name = name, icon = icon.ifEmpty { "📦" }, color = "#3B7A57", monthlyLimitMinor = 0L, order = _categories.value.size + 1)
+            val newCat = Category(id = newId, name = name, icon = safeIcon, color = "#3B7A57", monthlyLimitMinor = 0L, order = _categories.value.size + 1)
             _categories.value = _categories.value + newCat
         }
         return newId
+    }
+
+    override fun deleteCategory(categoryId: String) {
+        if (roomRepo != null) {
+            scope.launch {
+                roomRepo?.deleteCategory(categoryId)
+            }
+        } else {
+            _categories.value = _categories.value.filterNot { it.id == categoryId }
+        }
     }
 
     override fun togglePrivacyMask() {

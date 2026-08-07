@@ -36,6 +36,7 @@ data class TransactionEntity(
     val isManual: Boolean = false,
     val isReviewed: Boolean = true,
     val rawSms: String = "",
+    val availableBalanceMinor: Long? = null,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis()
 ) {
@@ -59,7 +60,8 @@ data class TransactionEntity(
         confidence = confidence,
         isManual = isManual,
         isReviewed = isReviewed,
-        rawSms = rawSms
+        rawSms = rawSms,
+        availableBalance = availableBalanceMinor
     )
 }
 

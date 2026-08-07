@@ -182,6 +182,13 @@ fun TransactionsLedgerScreen(uiState: MSTrackerUiState, viewModel: MSTrackerView
             onAddNewCategory = { newName, newIcon ->
                 viewModel.addCategory(newName, newIcon)
             },
+            onDeleteCategory = { catId ->
+                viewModel.deleteCategory(catId)
+            },
+            onDeleteTransaction = {
+                viewModel.deleteTransaction(selectedTxForPopup!!.id)
+                selectedTxForPopup = null
+            },
             onDismiss = { selectedTxForPopup = null },
             onSave = { updatedTx, newType, newCatId ->
                 viewModel.updateTransaction(

@@ -186,12 +186,13 @@ class RoomMSTrackerRepository(
 
     override fun addCategory(name: String, icon: String): String {
         val catId = "cat-" + java.util.UUID.randomUUID().toString().take(8)
+        val safeIcon = com.example.mstrackerapp.utils.CategoryIcons.sanitizeForStorage(icon, name)
         scope.launch {
             categoryDao.insertCategory(
                 com.example.mstrackerapp.data.database.entities.CategoryEntity(
                     id = catId,
                     name = name.trim().ifEmpty { "New Category" },
-                    icon = icon.trim().ifEmpty { "📦" },
+                    icon = safeIcon,
                     color = "#3B7A57",
                     monthlyLimitMinor = 0L,
                     order = 99
@@ -200,5 +201,16 @@ class RoomMSTrackerRepository(
         }
         return catId
     }
+
+    suspend fun deleteCategoryById(id: String) {
+        categoryDao.deleteCategory(id)
+    }
+
+    override fun deleteCategory(categoryId: String) {
+        scope.launch {
+            categoryDao.deleteCategory(categoryId)
+        }
+    }
+
     override fun togglePrivacyMask() {}
 }

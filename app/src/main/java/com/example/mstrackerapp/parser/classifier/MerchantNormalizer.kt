@@ -211,24 +211,27 @@ object MerchantNormalizer {
 
     /**
      * Normalize a raw extracted merchant string to a canonical name.
-     * Longest alias match wins.
+     * Longest alias match wins. Uses word-boundary matching so "OLA"
+     * does not match inside "POLAMREDDY".
      */
     fun normalize(rawMerchant: String, extraAliases: Map<String, String> = emptyMap()): String {
         val cleaned = clean(rawMerchant)
         if (cleaned.isEmpty()) return "Unknown"
         val upper = cleaned.uppercase()
 
-        // Exact / contains match against aliases (longest first)
         val allAliases = (extraAliases.mapKeys { it.key.uppercase() } + BUILTIN_ALIASES)
             .entries
             .sortedByDescending { it.key.length }
 
         for ((alias, canonical) in allAliases) {
-            if (upper == alias || upper.contains(alias)) {
+            if (upper == alias || aliasMatchesText(upper, alias)) {
                 return canonical
             }
         }
-        // Title-case residual merchant for display consistency
+        // Title-case residual merchant for display consistency (keep VPA-style handles lowercase)
+        if (cleaned.contains('.') || cleaned.contains('_') || cleaned.contains('-') && cleaned.any { it.isDigit() }) {
+            return cleaned.lowercase().take(40)
+        }
         return cleaned.split(" ").joinToString(" ") { word ->
             word.lowercase().replaceFirstChar { it.titlecase() }
         }.take(40)
@@ -237,14 +240,21 @@ object MerchantNormalizer {
     fun isKnownMerchant(merchant: String): Boolean {
         val upper = merchant.uppercase().trim()
         if (upper.isEmpty() || UNKNOWN_PLACEHOLDERS.any { upper.contains(it) }) return false
-        return BUILTIN_ALIASES.keys.any { upper.contains(it) || it.contains(upper) } ||
+        return BUILTIN_ALIASES.keys.any { aliasMatchesText(upper, it) || it.equals(upper, ignoreCase = true) } ||
             BUILTIN_ALIASES.values.any { it.equals(merchant, ignoreCase = true) }
+    }
+
+    /** True when [alias] appears as a whole token in [text] (not a substring of a longer word). */
+    fun aliasMatchesText(text: String, alias: String): Boolean {
+        if (alias.isBlank()) return false
+        val escaped = Regex.escape(alias.trim())
+        return Regex("""(?i)(?<![\p{L}\p{N}])$escaped(?![\p{L}\p{N}])""").containsMatchIn(text)
     }
 
     fun clean(raw: String): String {
         return raw
             .replace(Regex("""\d{6,}"""), "")
-            .replace(Regex("""[@.].*$"""), "") // strip VPA domain
+            .replace(Regex("""@.*$"""), "") // strip VPA domain only (do not cut on '.')
             .replace(Regex("""\s+"""), " ")
             .trim()
             .trimEnd('.', ',', '-', '/')

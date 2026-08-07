@@ -30,7 +30,7 @@ import kotlinx.coroutines.launch
         TagEntity::class,
         AttachmentEntity::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 abstract class MSTrackerDatabase : RoomDatabase() {
@@ -60,6 +60,7 @@ abstract class MSTrackerDatabase : RoomDatabase() {
                     "mstracker_database"
                 )
                     .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING) // WAL Journal Mode Optimization
+                    .addMigrations(Migrations.MIGRATION_6_7)
                     .fallbackToDestructiveMigration()
                     .addCallback(DatabaseCallback(context))
                     .build()

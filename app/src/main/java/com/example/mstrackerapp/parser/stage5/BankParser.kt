@@ -12,7 +12,7 @@ object BankParser {
         "YESBK" to "YES Bank", "YESBNK" to "YES Bank",
         "PNBSMS" to "PNB", "PNB" to "PNB",
         "BOBTXN" to "Bank of Baroda", "BOB" to "Bank of Baroda",
-        "CANBNK" to "Canara Bank",
+        "CANBNK" to "Canara Bank", "CNRBNK" to "Canara Bank", "CNRB" to "Canara Bank",
         "IDFCBK" to "IDFC FIRST Bank",
         "RBLBNK" to "RBL Bank",
         "INDBNK" to "IndusInd Bank", "INDUSB" to "IndusInd Bank", "INDUSA" to "IndusInd Bank",
@@ -26,7 +26,8 @@ object BankParser {
         "GPAYID" to "Google Pay",
         "CREDCL" to "CRED",
         "AMZPAY" to "Amazon Pay",
-        "MOBIKW" to "MobiKwik"
+        "MOBIKW" to "MobiKwik",
+        "EPFOHO" to "EPFO", "EPFO" to "EPFO", "EPFIND" to "EPFO"
     )
 
     // Body-based fallback patterns
@@ -37,9 +38,11 @@ object BankParser {
         "Axis Bank" to Regex("""Axis\s*Bank""", RegexOption.IGNORE_CASE),
         "Kotak Bank" to Regex("""Kotak\s*(?:Mahindra)?\s*Bank""", RegexOption.IGNORE_CASE),
         "YES Bank" to Regex("""YES\s*Bank""", RegexOption.IGNORE_CASE),
+        "Canara Bank" to Regex("""Canara\s*Bank|\bCNRB\b""", RegexOption.IGNORE_CASE),
         "IDFC FIRST Bank" to Regex("""IDFC\s*(?:FIRST)?\s*Bank""", RegexOption.IGNORE_CASE),
         "Indian Bank" to Regex("""\bIndian\s*Bank\b""", RegexOption.IGNORE_CASE),
         "IndusInd Bank" to Regex("""IndusInd""", RegexOption.IGNORE_CASE),
+        "EPFO" to Regex("""\bEPFO\b|epassbook|provident\s+fund|passbook\s+balance""", RegexOption.IGNORE_CASE),
         "Paytm" to Regex("""Paytm""", RegexOption.IGNORE_CASE),
         "PhonePe" to Regex("""PhonePe""", RegexOption.IGNORE_CASE),
         "Google Pay" to Regex("""Google\s*Pay|GPay""", RegexOption.IGNORE_CASE)

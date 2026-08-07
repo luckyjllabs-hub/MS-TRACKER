@@ -76,6 +76,9 @@ interface CategoryDao {
 
     @Query("UPDATE categories SET monthlyLimitMinor = :limitMinor WHERE id = :id")
     suspend fun updateCategoryLimit(id: String, limitMinor: Long)
+
+    @Query("DELETE FROM categories WHERE id = :id")
+    suspend fun deleteCategory(id: String)
 }
 
 @Dao

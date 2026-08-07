@@ -79,7 +79,7 @@ object SmsProcessingPipeline {
         val referenceNumber = ReferenceParser.extractReference(body)
         val upiId = ReferenceParser.extractUpiId(body)
         val cardLast4 = AccountParser.extractCardLast4(body)
-        val accountLast4 = AccountParser.extractAccountLast4(body)
+        val accountLast4 = AccountParser.extractAccountLast4(body).ifBlank { cardLast4 }
         val availableBalance = BalanceParser.extractBalanceMinor(body)
 
         // --- Stage 6: Category Classification ---

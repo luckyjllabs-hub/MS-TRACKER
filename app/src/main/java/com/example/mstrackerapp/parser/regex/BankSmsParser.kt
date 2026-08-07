@@ -35,7 +35,7 @@ object BankSmsParser {
     )
 
     private val ACCOUNT_REGEX = Regex(
-        """(?:A/C|Acct|Account)\s*(?:no\.?|ending)?\s*[*X]*(\d{4})""",
+        """(?:A/C|Acct\.?|Account|Acc)\s*(?:no\.?|ending(?:\s*(?:in|with))?)?\s*[*X]*(\d{3,4})\b""",
         RegexOption.IGNORE_CASE
     )
 
