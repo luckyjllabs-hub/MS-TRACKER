@@ -11,10 +11,10 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:windowSoftInputMode="adjustResize"
-        android:theme="@style/Theme.MSTrackerApp">
+        android:theme="@style/Theme.MoneyLens">
 
         <activity
-            android:name="com.example.mstrackerapp.MainActivity"
+            android:name="com.jllabs.moneylens.MainActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -23,7 +23,7 @@
         </activity>
 
         <receiver
-            android:name="com.example.mstrackerapp.receiver.BankSmsReceiver"
+            android:name="com.jllabs.moneylens.receiver.BankSmsReceiver"
             android:exported="true"
             android:permission="android.permission.BROADCAST_SMS">
             <intent-filter android:priority="999">

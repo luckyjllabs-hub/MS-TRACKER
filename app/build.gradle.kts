@@ -7,14 +7,14 @@ plugins {
 }
 
 android {
-    namespace = "com.example.mstrackerapp"
+    namespace = "com.jllabs.moneylens"
     compileSdk = 36
     defaultConfig {
-        applicationId = "com.example.mstrackerapp"
+        applicationId = "com.jllabs.moneylens"
         minSdk = 24
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 4
+        versionName = "2.0.0"
     }
 
     buildTypes {
@@ -33,14 +33,14 @@ android {
     buildFeatures {
       compose = true
       aidl = false
-      buildConfig = false
+      buildConfig = true
       shaders = false
     }
 
     applicationVariants.all {
         outputs.all {
             val output = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
-            output.outputFileName = "MSTracker.apk"
+            output.outputFileName = "MoneyLens.apk"
         }
     }
 
@@ -48,6 +48,11 @@ android {
       resources {
         excludes += "/META-INF/{AL2.0,LGPL2.1}"
       }
+    }
+
+    lint {
+        // Avoid lintVital file locks from concurrent IDE/Gradle processes on Windows.
+        checkReleaseBuilds = false
     }
 }
 
