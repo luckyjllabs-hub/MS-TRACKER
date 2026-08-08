@@ -102,13 +102,21 @@ object DebitCreditDetector {
             val subType = when {
                 lowerBody.contains("upi") || lowerBody.contains("vpa") -> SmsTransactionSubType.UPI_PAYMENT
                 lowerBody.contains("imps") || lowerBody.contains("neft") || lowerBody.contains("rtgs") ||
+                    lowerBody.contains("inft") ||
                     lowerBody.contains("transfer from") || lowerBody.contains("rrn") ||
                     lowerBody.contains("credit by") ||
                     RECEIVED_IN_ACCOUNT.containsMatchIn(body) ->
                     SmsTransactionSubType.TRANSFER_IN
                 else -> SmsTransactionSubType.CREDIT
             }
-            return DebitCreditResult(TransactionType.INCOME, subType)
+            // Only true self-transfers are TRANSFER. External NEFT/IMPS (salary, vendor, etc.) stay INCOME.
+            // Paired own-account legs are excluded from Overview totals by InternalTransferClassifier.
+            val type = if (isExplicitSelfTransfer(lowerBody)) {
+                TransactionType.TRANSFER
+            } else {
+                TransactionType.INCOME
+            }
+            return DebitCreditResult(type, subType)
         }
 
         // FASTag toll debit
@@ -145,9 +153,23 @@ object DebitCreditDetector {
             CARD_PURCHASE.containsMatchIn(body) -> DebitCreditResult(TransactionType.EXPENSE, SmsTransactionSubType.CARD_PURCHASE)
             SUBSCRIPTION.containsMatchIn(body) -> DebitCreditResult(TransactionType.EXPENSE, SmsTransactionSubType.SUBSCRIPTION)
             INTEREST_DR.containsMatchIn(body) -> DebitCreditResult(TransactionType.EXPENSE, SmsTransactionSubType.INTEREST_DEBIT)
+            isExplicitSelfTransfer(lowerBody) && isDebited ->
+                DebitCreditResult(TransactionType.TRANSFER, SmsTransactionSubType.TRANSFER_OUT)
             isDebited -> DebitCreditResult(TransactionType.EXPENSE, SmsTransactionSubType.UPI_PAYMENT)
             else -> DebitCreditResult(TransactionType.EXPENSE, SmsTransactionSubType.DEBIT)
         }
+    }
+
+    /** Own-account move only — not every NEFT/IMPS from an employer or vendor. */
+    private fun isExplicitSelfTransfer(lowerBody: String): Boolean {
+        return Regex(
+            """(?i)\b(?:
+                self\s+transfer|transfer\s+to\s+self|own\s+account\s+transfer|
+                transferred\s+to\s+(?:your\s+)?(?:other|another)\s+a/?c|
+                fund\s+transfer\s+to\s+(?:a/?c|acct|account)\s*xx+\d+
+            )\b""",
+            RegexOption.COMMENTS
+        ).containsMatchIn(lowerBody)
     }
 
     private fun isOwnAccountCredit(body: String, lowerBody: String): Boolean {

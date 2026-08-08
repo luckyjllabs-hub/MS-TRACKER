@@ -1,6 +1,8 @@
 package com.jllabs.moneylens.presentation.screens
 
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -8,11 +10,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalanceWallet
-import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -26,10 +29,14 @@ import androidx.compose.ui.unit.sp
 import com.jllabs.moneylens.data.parser.SmsInboxScanner
 import com.jllabs.moneylens.domain.models.Category
 import com.jllabs.moneylens.domain.models.TransactionType
+import com.jllabs.moneylens.presentation.navigation.AppTab
 import com.jllabs.moneylens.theme.rememberAppUiColors
+import com.jllabs.moneylens.utils.BackupImporter
 import com.jllabs.moneylens.utils.CsvExporter
 import com.jllabs.moneylens.utils.Money
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -43,8 +50,53 @@ fun SettingsScreen(
     val ui = rememberAppUiColors(uiState.isDarkMode)
 
     var isExportingRawSms by remember { mutableStateOf(false) }
+    var isExportingBackup by remember { mutableStateOf(false) }
+    var isImportingBackup by remember { mutableStateOf(false) }
+    var showImportConfirm by remember { mutableStateOf(false) }
+    var pendingImportUri by remember { mutableStateOf<android.net.Uri?>(null) }
     var budgetDialogCategoryId by remember { mutableStateOf<String?>(null) }
     var showAddBudgetDialog by remember { mutableStateOf(false) }
+
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            pendingImportUri = uri
+            showImportConfirm = true
+        }
+    }
+
+    fun runImport(uri: android.net.Uri) {
+        coroutineScope.launch {
+            isImportingBackup = true
+            try {
+                val payload = withContext(Dispatchers.IO) {
+                    BackupImporter.readUri(context, uri)
+                }
+                if (payload.transactions.isEmpty() &&
+                    payload.categories.isEmpty() &&
+                    payload.accounts.isEmpty()
+                ) {
+                    Toast.makeText(context, "No backup data found in file", Toast.LENGTH_LONG).show()
+                } else {
+                    viewModel.importBackup(payload) { count ->
+                        Toast.makeText(
+                            context,
+                            "Restored $count transactions" +
+                                (if (payload.accounts.isNotEmpty()) " · ${payload.accounts.size} accounts" else "") +
+                                (if (payload.categories.isNotEmpty()) " · ${payload.categories.size} categories" else ""),
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
+            } catch (e: Exception) {
+                Toast.makeText(context, "Import failed: ${e.message}", Toast.LENGTH_LONG).show()
+            } finally {
+                isImportingBackup = false
+                pendingImportUri = null
+            }
+        }
+    }
 
     Column(
         modifier = modifier
@@ -66,28 +118,61 @@ fun SettingsScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text("Appearance", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = ui.ink)
+                        Text("SMS Inbox", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = ui.ink)
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    viewModel.onSearchQueryChange("")
+                                    viewModel.selectTab(AppTab.SMS_INBOX)
+                                }
+                                .padding(vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.DarkMode, contentDescription = null, tint = ui.accent, modifier = Modifier.size(20.dp))
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Text("Dark Mode", fontSize = 14.sp, color = ui.ink)
-                            }
-                            Switch(
-                                checked = uiState.isDarkMode,
-                                onCheckedChange = { viewModel.setDarkMode(it) },
-                                colors = SwitchDefaults.colors(
-                                    checkedThumbColor = Color.White,
-                                    checkedTrackColor = ui.accent,
-                                    uncheckedThumbColor = Color.White,
-                                    uncheckedTrackColor = Color(0xFFB0B5AD),
-                                    uncheckedBorderColor = Color(0xFF8A9488)
+                            BadgedBox(
+                                badge = {
+                                    if (uiState.smsQueue.isNotEmpty()) {
+                                        Badge(containerColor = ui.accent) {
+                                            Text(
+                                                text = uiState.smsQueue.size.toString(),
+                                                color = Color.White
+                                            )
+                                        }
+                                    }
+                                }
+                            ) {
+                                Icon(
+                                    Icons.Default.Inbox,
+                                    contentDescription = null,
+                                    tint = ui.accent,
+                                    modifier = Modifier.size(22.dp)
                                 )
-                            )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Open SMS inbox", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = ui.ink)
+                                Text(
+                                    if (uiState.smsQueue.isEmpty()) "Review queued bank SMS"
+                                    else "${uiState.smsQueue.size} messages waiting",
+                                    fontSize = 12.sp,
+                                    color = ui.muted
+                                )
+                            }
+                            Text("Open", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = ui.accent)
+                        }
+                        HorizontalDivider(color = ui.divider)
+                        Button(
+                            onClick = {
+                                SmsInboxScanner.scanExistingInbox(context)
+                                Toast.makeText(context, "SMS rescan started", Toast.LENGTH_SHORT).show()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = ui.accent),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Rescan SMS inbox")
                         }
                     }
                 }
@@ -153,7 +238,77 @@ fun SettingsScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text("Backup", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = ui.ink)
+                        Text("Backup & Restore", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = ui.ink)
+                        Text(
+                            "Export a full backup to move devices, or import a MoneyLens JSON / transactions CSV.",
+                            fontSize = 12.sp,
+                            color = ui.muted
+                        )
+                        Button(
+                            onClick = {
+                                coroutineScope.launch {
+                                    isExportingBackup = true
+                                    try {
+                                        val file = withContext(Dispatchers.IO) {
+                                            BackupImporter.writeBackupFile(
+                                                context,
+                                                uiState.allTransactions,
+                                                uiState.categories,
+                                                uiState.accounts
+                                            )
+                                        }
+                                        BackupImporter.shareBackupFile(context, file)
+                                    } catch (e: Exception) {
+                                        Toast.makeText(context, "Backup failed: ${e.message}", Toast.LENGTH_LONG).show()
+                                    } finally {
+                                        isExportingBackup = false
+                                    }
+                                }
+                            },
+                            enabled = !isExportingBackup && !isImportingBackup,
+                            colors = ButtonDefaults.buttonColors(containerColor = ui.accent),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            if (isExportingBackup) {
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Preparing backup…")
+                            } else {
+                                Icon(Icons.Default.Upload, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Export backup (JSON)")
+                            }
+                        }
+                        OutlinedButton(
+                            onClick = {
+                                importLauncher.launch(
+                                    arrayOf(
+                                        "application/json",
+                                        "text/*",
+                                        "text/csv",
+                                        "application/csv",
+                                        "*/*"
+                                    )
+                                )
+                            },
+                            enabled = !isExportingBackup && !isImportingBackup,
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = ui.accent)
+                        ) {
+                            if (isImportingBackup) {
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp), color = ui.accent, strokeWidth = 2.dp)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Importing…")
+                            } else {
+                                Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Import / restore backup")
+                            }
+                        }
+                        HorizontalDivider(color = ui.divider)
+                        Text("Other exports", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = ui.muted)
                         Button(
                             onClick = {
                                 val file = CsvExporter.exportTransactionsToCsv(
@@ -193,7 +348,7 @@ fun SettingsScreen(
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text("Reading SMS…")
                             } else {
-                                Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text("Export SMS Raw Data")
                             }
@@ -201,32 +356,43 @@ fun SettingsScreen(
                     }
                 }
             }
-
-            item {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = ui.card),
-                    shape = RoundedCornerShape(20.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text("Scanning", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = ui.ink)
-                        Button(
-                            onClick = {
-                                SmsInboxScanner.scanExistingInbox(context)
-                                Toast.makeText(context, "SMS rescan started", Toast.LENGTH_SHORT).show()
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = ui.accent),
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Rescan SMS inbox")
-                        }
-                    }
-                }
-            }
         }
+    }
+
+    if (showImportConfirm && pendingImportUri != null) {
+        AlertDialog(
+            onDismissRequest = {
+                showImportConfirm = false
+                pendingImportUri = null
+            },
+            containerColor = ui.card,
+            title = { Text("Restore backup?", fontWeight = FontWeight.Bold, color = ui.ink) },
+            text = {
+                Text(
+                    "Imported accounts, categories, and transactions will be merged with your current data. Duplicates are skipped.",
+                    color = ui.muted,
+                    fontSize = 13.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val uri = pendingImportUri
+                        showImportConfirm = false
+                        if (uri != null) runImport(uri)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = ui.accent)
+                ) { Text("Import") }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showImportConfirm = false
+                        pendingImportUri = null
+                    }
+                ) { Text("Cancel", color = ui.muted) }
+            }
+        )
     }
 
     val editCategoryId = budgetDialogCategoryId

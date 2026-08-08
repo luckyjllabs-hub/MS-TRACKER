@@ -25,6 +25,9 @@ interface TransactionDao {
     )
     fun globalSearch(query: String): Flow<List<TransactionEntity>>
 
+    @Query("SELECT * FROM transactions WHERE type = :type")
+    suspend fun getTransactionsByType(type: String): List<TransactionEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTransaction(transaction: TransactionEntity)
 

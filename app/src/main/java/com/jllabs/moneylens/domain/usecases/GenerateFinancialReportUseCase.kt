@@ -31,8 +31,10 @@ class GenerateFinancialReportUseCase {
         accounts: List<Account>,
         period: String
     ): FinancialReportData {
-        val totalExpense = transactions.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amountMinor }
-        val totalIncome = transactions.filter { it.type == TransactionType.INCOME }.sumOf { it.amountMinor }
+        val totalExpense = com.jllabs.moneylens.domain.accounts.InternalTransferClassifier
+            .incomeExpenseTotals(transactions).second
+        val totalIncome = com.jllabs.moneylens.domain.accounts.InternalTransferClassifier
+            .incomeExpenseTotals(transactions).first
         val netSavings = totalIncome - totalExpense
 
         // 1. Category Breakdown

@@ -192,8 +192,9 @@ object ReminderExtractor {
     }
 
     /**
-     * Hide after [EXPIRY_GRACE_DAYS] past the due date.
-     * Dues/bills without a parseable due date expire sooner than coupons.
+     * Hide after grace past the due date.
+     * Coupons: hide as soon as expiry date has passed (no grace).
+     * Dues/bills without a parseable due date expire sooner than undated coupons.
      */
     fun isExpired(
         reminder: SmsReminder,
@@ -203,10 +204,12 @@ object ReminderExtractor {
         val due = reminder.dueDateIso
         if (due != null) {
             val daysPastDue = daysBetween(due, todayIso)
-            return daysPastDue > graceDays
+            val grace = if (reminder.kind == ReminderKind.COUPON) 0 else graceDays
+            return daysPastDue > grace
         }
         val maxAgeDays = when (reminder.kind) {
             ReminderKind.PAYMENT_DUE, ReminderKind.BILL -> 35
+            ReminderKind.COUPON -> 30
             else -> 90
         }
         return daysBetween(reminder.sourceDate, todayIso) > maxAgeDays

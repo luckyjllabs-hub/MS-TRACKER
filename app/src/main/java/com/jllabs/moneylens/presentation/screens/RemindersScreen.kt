@@ -66,6 +66,27 @@ fun RemindersScreen(uiState: MoneyLensUiState, viewModel: MoneyLensViewModel) {
     val reminders = remember(uiState.allTransactions, dismissTick) {
         ReminderExtractor.extractFromTransactions(uiState.allTransactions, dismissedIds = dismissed)
     }
+    val filteredReminders = remember(reminders, uiState.searchQuery, uiState.selectedFilter, uiState.transactions) {
+        val periodDates = uiState.transactions.map { it.date }.toSet()
+        var list = reminders
+        if (!uiState.selectedFilter.equals("All", ignoreCase = true)) {
+            list = list.filter { rem ->
+                rem.sourceDate in periodDates ||
+                    (!rem.dueDateIso.isNullOrBlank() && rem.dueDateIso in periodDates)
+            }
+        }
+        val q = uiState.searchQuery.trim()
+        if (q.isNotBlank()) {
+            list = list.filter { rem ->
+                rem.title.contains(q, true) ||
+                    rem.detail.contains(q, true) ||
+                    rem.bankHint.contains(q, true) ||
+                    rem.rawSms.contains(q, true) ||
+                    (rem.dueLabel?.contains(q, true) == true)
+            }
+        }
+        list
+    }
     var selected by remember { mutableStateOf<SmsReminder?>(null) }
 
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
@@ -82,7 +103,7 @@ fun RemindersScreen(uiState: MoneyLensUiState, viewModel: MoneyLensViewModel) {
             verticalArrangement = Arrangement.spacedBy(10.dp),
             contentPadding = PaddingValues(bottom = 100.dp)
         ) {
-            if (reminders.isEmpty()) {
+            if (filteredReminders.isEmpty()) {
                 item {
                     Card(
                         colors = CardDefaults.cardColors(containerColor = ui.card),
@@ -101,7 +122,7 @@ fun RemindersScreen(uiState: MoneyLensUiState, viewModel: MoneyLensViewModel) {
                     }
                 }
             } else {
-                items(reminders, key = { it.id }) { rem ->
+                items(filteredReminders, key = { it.id }) { rem ->
                     ReminderCard(
                         rem = rem,
                         cardBg = ui.card,

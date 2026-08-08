@@ -64,12 +64,26 @@ fun AccountsScreen(uiState: MoneyLensUiState, viewModel: MoneyLensViewModel) {
     var showAddAccountDialog by remember { mutableStateOf(false) }
     var menuExpanded by remember { mutableStateOf(false) }
     var selectedAccount by remember { mutableStateOf<SmsAccountRow?>(null) }
-    var bankSectionExpanded by remember { mutableStateOf(true) }
-    var loanSectionExpanded by remember { mutableStateOf(true) }
-    var cardSectionExpanded by remember { mutableStateOf(true) }
+    var bankSectionExpanded by remember { mutableStateOf(false) }
+    var loanSectionExpanded by remember { mutableStateOf(false) }
+    var cardSectionExpanded by remember { mutableStateOf(false) }
     val ui = rememberAppUiColors(uiState.isDarkMode)
 
-    val smsAccounts = uiState.smsAccounts
+    // Always show all discovered accounts; period filter must not hide loan/CC/FASTag rows.
+    // Search may narrow by name/bank/last4 only.
+    val smsAccounts = remember(uiState.smsAccounts, uiState.searchQuery) {
+        val all = uiState.smsAccounts
+        val q = uiState.searchQuery.trim()
+        if (q.isBlank()) {
+            all
+        } else {
+            all.filter { acc ->
+                acc.displayName.contains(q, ignoreCase = true) ||
+                    acc.shortBank.contains(q, ignoreCase = true) ||
+                    acc.last4.contains(q, ignoreCase = true)
+            }
+        }
+    }
 
     val activeAccount = selectedAccount?.let { sel ->
         smsAccounts.firstOrNull { it.key == sel.key } ?: sel

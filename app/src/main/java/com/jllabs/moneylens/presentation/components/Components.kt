@@ -60,8 +60,8 @@ fun appTextFieldColors(isDark: Boolean = false) = OutlinedTextFieldDefaults.colo
 @Composable
 fun TopAppBarHeader(
     activeTab: AppTab,
-    smsCount: Int,
-    onSmsClick: () -> Unit
+    isDarkMode: Boolean,
+    onToggleDarkMode: () -> Unit
 ) {
     val scheme = MaterialTheme.colorScheme
     TopAppBar(
@@ -123,28 +123,18 @@ fun TopAppBarHeader(
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                     fontSize = 9.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF3B7A57)
+                    color = scheme.primary
                 )
             }
 
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(4.dp))
 
-            BadgedBox(
-                badge = {
-                    if (smsCount > 0) {
-                        Badge(containerColor = Color(0xFF3B7A57)) {
-                            Text(text = smsCount.toString(), color = Color.White)
-                        }
-                    }
-                }
-            ) {
-                IconButton(onClick = onSmsClick) {
-                    Icon(
-                        Icons.Default.Notifications,
-                        contentDescription = "SMS Queue",
-                        tint = scheme.onSurface
-                    )
-                }
+            IconButton(onClick = onToggleDarkMode) {
+                Icon(
+                    imageVector = if (isDarkMode) Icons.Default.LightMode else Icons.Default.DarkMode,
+                    contentDescription = if (isDarkMode) "Switch to light mode" else "Switch to dark mode",
+                    tint = scheme.onSurface
+                )
             }
         },
         colors = TopAppBarDefaults.topAppBarColors(

@@ -25,6 +25,8 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
@@ -42,10 +44,10 @@ import com.jllabs.moneylens.domain.models.Category
 import com.jllabs.moneylens.domain.models.Transaction
 import com.jllabs.moneylens.domain.models.TransactionType
 import com.jllabs.moneylens.presentation.components.CategoryPieChart
-import com.jllabs.moneylens.presentation.components.PeriodDropdown
 import com.jllabs.moneylens.presentation.components.PieChartSlice
 import com.jllabs.moneylens.presentation.components.TransactionRowItem
 import com.jllabs.moneylens.presentation.components.TypeSegmentedControl
+import com.jllabs.moneylens.presentation.components.transactionMatchesSearch
 import com.jllabs.moneylens.theme.rememberAppUiColors
 import com.jllabs.moneylens.utils.CategoryIcons
 import com.jllabs.moneylens.utils.CsvExporter
@@ -56,11 +58,12 @@ fun OverviewScreen(uiState: MoneyLensUiState, viewModel: MoneyLensViewModel) {
     val context = LocalContext.current
     val ui = rememberAppUiColors(uiState.isDarkMode)
     val isDark = uiState.isDarkMode
-    val dashboardFilters = listOf("This Month", "Today", "Yesterday", "This Week", "3 Months", "6 Months", "1 Year", "All")
     val typeTabOptions = listOf("All", "Credit", "Debit")
 
     var selectedTypeTab by remember { mutableStateOf("All") }
     var selectedTxForPopup by remember { mutableStateOf<Transaction?>(null) }
+    // Dates absent from the map default to collapsed (same as Accounts sections).
+    val dateExpanded = remember { mutableStateMapOf<String, Boolean>() }
 
     val savingsMinor = uiState.totalIncomeMinor - uiState.totalExpenseMinor
 
@@ -83,7 +86,7 @@ fun OverviewScreen(uiState: MoneyLensUiState, viewModel: MoneyLensViewModel) {
     val pieSlices = remember(categoryExpenses, uiState.categories) {
         if (categoryExpenses.isEmpty()) emptyList()
         else {
-            val top = categoryExpenses.take(5)
+            val top = categoryExpenses.take(4)
             val rest = categoryExpenses.drop(5).sumOf { it.value }
             val slices = top.map { (catId, totalMinor) ->
                 val cat = uiState.categories.find { it.id == catId }
@@ -103,13 +106,15 @@ fun OverviewScreen(uiState: MoneyLensUiState, viewModel: MoneyLensViewModel) {
     }
 
     // Filter transactions by Type Tab (All, Credit, Debit) & Search Query
-    // Overview is money movement only — never EMI/due/balance JUST_INFO reminders
+    // Overview is money movement only — never EMI/due/balance JUST_INFO reminders.
+    // TRANSFER (true self-transfer) still shows so moves aren't "missing".
     val filteredTransactions = remember(uiState.transactions, selectedTypeTab, uiState.searchQuery) {
         var list = uiState.transactions.filter { tx ->
             when (tx.type) {
                 TransactionType.INCOME -> true
                 TransactionType.EXPENSE -> tx.smsTransactionSubType != "INFO_ALERT"
-                else -> false // JUST_INFO / TRANSFER stay out of Overview
+                TransactionType.TRANSFER -> true
+                TransactionType.JUST_INFO -> false
             } && !tx.source.equals("SMS_REMINDER", ignoreCase = true) &&
                 !tx.merchant.equals("EMI due", ignoreCase = true) &&
                 !tx.merchant.equals("Payment due", ignoreCase = true) &&
@@ -117,19 +122,25 @@ fun OverviewScreen(uiState: MoneyLensUiState, viewModel: MoneyLensViewModel) {
         }
 
         list = when (selectedTypeTab) {
-            "Credit" -> list.filter { it.type == TransactionType.INCOME }
-            "Debit" -> list.filter { it.type == TransactionType.EXPENSE }
+            "Credit" -> list.filter {
+                it.type == TransactionType.INCOME ||
+                    (it.type == TransactionType.TRANSFER &&
+                        (it.rawSms.contains("credited", ignoreCase = true) ||
+                            it.rawSms.contains("received", ignoreCase = true) ||
+                            it.smsTransactionSubType.equals("TRANSFER_IN", ignoreCase = true)))
+            }
+            "Debit" -> list.filter {
+                it.type == TransactionType.EXPENSE ||
+                    (it.type == TransactionType.TRANSFER &&
+                        (it.rawSms.contains("debited", ignoreCase = true) ||
+                            it.smsTransactionSubType.equals("TRANSFER_OUT", ignoreCase = true)))
+            }
             else -> list
         }
 
         if (uiState.searchQuery.isNotBlank()) {
-            val q = uiState.searchQuery.lowercase()
             list = list.filter { tx ->
-                tx.merchant.lowercase().contains(q) ||
-                tx.bankName.lowercase().contains(q) ||
-                tx.note.lowercase().contains(q) ||
-                tx.date.contains(q) ||
-                (tx.amountMinor / 100.0).toString().contains(q)
+                transactionMatchesSearch(tx, uiState.searchQuery, uiState.categories)
             }
         }
         list
@@ -142,15 +153,7 @@ fun OverviewScreen(uiState: MoneyLensUiState, viewModel: MoneyLensViewModel) {
         verticalArrangement = Arrangement.spacedBy(16.dp),
         contentPadding = PaddingValues(top = 8.dp, bottom = 110.dp)
     ) {
-        // Period filter dropdown only at top
-        item {
-            PeriodDropdown(
-                label = "Period",
-                options = dashboardFilters,
-                selected = uiState.selectedFilter,
-                onSelected = { viewModel.onFilterSelect(it) }
-            )
-        }
+        // Period + search live in the global filter bar (MainScreen)
 
         // 1. Net Worth Card
         item {
@@ -248,12 +251,14 @@ fun OverviewScreen(uiState: MoneyLensUiState, viewModel: MoneyLensViewModel) {
             }
         }
 
-        // 2. Category Pie Chart â€” reflects selected period
+        // 2. Compact category spend breakdown — reflects selected period
         if (pieSlices.isNotEmpty()) {
             item {
                 CategoryPieChart(
                     slices = pieSlices,
-                    title = "Category Distribution \u00B7 ${uiState.selectedFilter}"
+                    title = "Category spend \u00B7 ${uiState.selectedFilter}",
+                    isPrivacyMasked = uiState.isPrivacyMasked,
+                    isDarkMode = isDark
                 )
             }
         }
@@ -313,66 +318,6 @@ fun OverviewScreen(uiState: MoneyLensUiState, viewModel: MoneyLensViewModel) {
                     color = ui.ink
                 )
 
-                // Search Bar (Height 48.dp for accessibility & no text baseline clipping)
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = ui.card,
-                    border = BorderStroke(1.dp, ui.divider),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Search,
-                            contentDescription = "Search",
-                            tint = ui.muted,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Box(
-                            modifier = Modifier.weight(1f),
-                            contentAlignment = Alignment.CenterStart
-                        ) {
-                            if (uiState.searchQuery.isEmpty()) {
-                                Text(
-                                    text = "Search merchant, category, bank, date, amount...",
-                                    fontSize = 12.sp,
-                                    color = ui.muted,
-                                    maxLines = 1,
-                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                )
-                            }
-                            BasicTextField(
-                                value = uiState.searchQuery,
-                                onValueChange = viewModel::onSearchQueryChange,
-                                singleLine = true,
-                                textStyle = androidx.compose.ui.text.TextStyle(
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = ui.ink
-                                ),
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                        if (uiState.searchQuery.isNotEmpty()) {
-                            Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = "Clear",
-                                tint = ui.muted,
-                                modifier = Modifier
-                                    .size(18.dp)
-                                    .clickable { viewModel.onSearchQueryChange("") }
-                            )
-                        }
-                    }
-                }
-
                 TypeSegmentedControl(
                     options = typeTabOptions,
                     selected = selectedTypeTab,
@@ -413,50 +358,67 @@ fun OverviewScreen(uiState: MoneyLensUiState, viewModel: MoneyLensViewModel) {
         } else {
             val groupedByDate = filteredTransactions.groupBy { it.date }
             groupedByDate.forEach { (dateHeader, dayTransactions) ->
+                val isExpanded = dateExpanded[dateHeader] ?: false
                 item(key = "header-$dateHeader") {
                     Surface(
                         color = ui.chip,
                         shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 2.dp)
+                            .clickable {
+                                dateExpanded[dateHeader] = !isExpanded
+                            }
                     ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 8.dp, vertical = 4.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
                                 text = dateHeader,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = if (isDark) Color(0xFF81C784) else Color(0xFF3B7A57)
+                                color = if (isDark) Color(0xFF81C784) else Color(0xFF3B7A57),
+                                modifier = Modifier.weight(1f)
                             )
-                            val dailyNet = dayTransactions.sumOf { if (it.type == TransactionType.INCOME) it.amountMinor else -it.amountMinor }
+                            val dailyNet = dayTransactions.sumOf {
+                                if (it.type == TransactionType.INCOME) it.amountMinor else -it.amountMinor
+                            }
                             Text(
-                                text = "Day Net: ${Money.format(dailyNet)}",
+                                text = "#${dayTransactions.size} · Day Net: ${Money.format(dailyNet)}",
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = ui.muted
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Icon(
+                                imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                contentDescription = if (isExpanded) "Collapse" else "Expand",
+                                tint = ui.muted,
+                                modifier = Modifier.size(18.dp)
                             )
                         }
                     }
                 }
 
-                items(dayTransactions, key = { it.id }) { tx ->
-                    val account = uiState.accounts.find { it.id == tx.accountId }
-                    val category = uiState.categories.find { it.id == tx.categoryId }
+                if (isExpanded) {
+                    items(dayTransactions, key = { it.id }) { tx ->
+                        val account = uiState.accounts.find { it.id == tx.accountId }
+                        val category = uiState.categories.find { it.id == tx.categoryId }
 
-                    Box(modifier = Modifier.clickable { selectedTxForPopup = tx }) {
-                        TransactionRowItem(
-                            transaction = tx,
-                            accountName = account?.name ?: "Account",
-                            categoryName = category?.name ?: "Category",
-                            categoryIcon = CategoryIcons.display(category?.icon, category?.name ?: "Category"),
-                            isPrivacyMasked = uiState.isPrivacyMasked,
-                            isDarkMode = isDark,
-                            onDelete = { viewModel.deleteTransaction(tx.id) }
-                        )
+                        Box(modifier = Modifier.clickable { selectedTxForPopup = tx }) {
+                            TransactionRowItem(
+                                transaction = tx,
+                                accountName = account?.name ?: "Account",
+                                categoryName = category?.name ?: "Category",
+                                categoryIcon = CategoryIcons.display(category?.icon, category?.name ?: "Category"),
+                                isPrivacyMasked = uiState.isPrivacyMasked,
+                                isDarkMode = isDark,
+                                onDelete = { viewModel.deleteTransaction(tx.id) }
+                            )
+                        }
                     }
                 }
             }

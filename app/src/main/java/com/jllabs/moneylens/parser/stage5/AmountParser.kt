@@ -4,8 +4,9 @@ object AmountParser {
 
     // Verb + currency amount, including HDFC "Received!\nINR 12,181.00" and ICICI "credited:Rs.456666.00"
     // Also SBI "has a credit by Cheque of Rs 19,20,000.00"
+    // Allow optional separators with/without space: "credited:Rs." / "debited Rs."
     private val VERB_CURRENCY_AMOUNT = Regex(
-        """(?i)\b(?:debited|credited|spent|sent|paid|transferred|withdrawn|received|deposited|deducted|(?:has\s+a\s+)?credit\s+by(?:\s+\w+)?)[!.,:]?\s*(?:(?:for|by|of|with|is|to|in|at)\s+)?(?:rs\.?|inr|₹)\s*([\d,]+\.?\d*)"""
+        """(?i)\b(?:debited|credited|spent|sent|paid|transferred|withdrawn|received|deposited|deducted|(?:has\s+a\s+)?credit\s+by(?:\s+\w+)?)\s*[:\-.]?\s*(?:(?:for|by|of|with|is|to|in|at)\s+)?(?:rs\.?|inr|₹)\s*([\d,]+\.?\d*)"""
     )
     // SBI-style without currency token: "debited by 40.00" / "credited by 6000"
     private val VERB_BARE_AMOUNT = Regex(

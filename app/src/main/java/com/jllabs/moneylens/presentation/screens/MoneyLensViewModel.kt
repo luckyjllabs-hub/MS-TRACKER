@@ -31,7 +31,9 @@ data class MoneyLensUiState(
     val isPrivacyMasked: Boolean = false,
     val isDarkMode: Boolean = false,
     val searchQuery: String = "",
-    val selectedFilter: String = "All"
+    val selectedFilter: String = "This Month",
+    val customStartDate: String = "",
+    val customEndDate: String = ""
 )
 
 class MoneyLensViewModel(private val repository: MoneyLensRepository) : ViewModel() {
@@ -42,6 +44,8 @@ class MoneyLensViewModel(private val repository: MoneyLensRepository) : ViewMode
     private val _activeTab = MutableStateFlow(AppTab.OVERVIEW)
     private val _searchQuery = MutableStateFlow("")
     private val _selectedFilter = MutableStateFlow("This Month")
+    private val _customStartDate = MutableStateFlow("")
+    private val _customEndDate = MutableStateFlow("")
 
     private val dataFlow = combine(
         repository.accounts,
@@ -61,6 +65,10 @@ class MoneyLensViewModel(private val repository: MoneyLensRepository) : ViewMode
         _selectedFilter
     ) { activeTab, isPrivacyMasked, isDarkMode, query, filter ->
         UserControls(activeTab, isPrivacyMasked, isDarkMode, query, filter)
+    }.combine(
+        combine(_customStartDate, _customEndDate) { start, end -> start to end }
+    ) { controls, range ->
+        controls.copy(customStart = range.first, customEnd = range.second)
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -75,10 +83,17 @@ class MoneyLensViewModel(private val repository: MoneyLensRepository) : ViewMode
         userControlsFlow,
         smsAccountsFlow
     ) { data, controls, smsAccounts ->
-        val filteredTx = getFilteredTransactionsUseCase(data.transactions, controls.query, controls.filter, data.accounts)
+        val filteredTx = getFilteredTransactionsUseCase(
+            data.transactions,
+            controls.query,
+            controls.filter,
+            data.accounts,
+            controls.customStart.takeIf { it.isNotBlank() },
+            controls.customEnd.takeIf { it.isNotBlank() }
+        )
 
-        val totalIncome = filteredTx.filter { it.type == TransactionType.INCOME }.sumOf { it.amountMinor }
-        val totalExpense = filteredTx.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amountMinor }
+        val (totalIncome, totalExpense) =
+            com.jllabs.moneylens.domain.accounts.InternalTransferClassifier.incomeExpenseTotals(filteredTx)
         val netWorth = calculateNetWorthUseCase(data.accounts, filteredTx)
 
         MoneyLensUiState(
@@ -96,7 +111,9 @@ class MoneyLensViewModel(private val repository: MoneyLensRepository) : ViewMode
             isPrivacyMasked = controls.isPrivacyMasked,
             isDarkMode = controls.isDarkMode,
             searchQuery = controls.query,
-            selectedFilter = controls.filter
+            selectedFilter = controls.filter,
+            customStartDate = controls.customStart,
+            customEndDate = controls.customEnd
         )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, MoneyLensUiState())
 
@@ -110,6 +127,14 @@ class MoneyLensViewModel(private val repository: MoneyLensRepository) : ViewMode
 
     fun onFilterSelect(filter: String) {
         _selectedFilter.value = filter
+    }
+
+    fun onCustomDateRangeChange(startIso: String, endIso: String) {
+        _customStartDate.value = startIso
+        _customEndDate.value = endIso
+        if (startIso.isNotBlank() || endIso.isNotBlank()) {
+            _selectedFilter.value = "Custom"
+        }
     }
 
     fun togglePrivacyMask() {
@@ -170,6 +195,10 @@ class MoneyLensViewModel(private val repository: MoneyLensRepository) : ViewMode
         repository.deleteCategory(categoryId)
     }
 
+    fun importBackup(payload: com.jllabs.moneylens.utils.MoneyLensBackupPayload, onDone: (Int) -> Unit = {}) {
+        repository.importBackup(payload, onDone)
+    }
+
     private data class DataSnapshot(
         val accounts: List<Account>,
         val categories: List<Category>,
@@ -183,6 +212,9 @@ class MoneyLensViewModel(private val repository: MoneyLensRepository) : ViewMode
         val isPrivacyMasked: Boolean,
         val isDarkMode: Boolean,
         val query: String,
-        val filter: String
+        val filter: String,
+        val customStart: String = "",
+        val customEnd: String = ""
     )
 }
+

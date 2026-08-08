@@ -220,4 +220,106 @@ class RoomMoneyLensRepository(
     override fun setDarkMode(enabled: Boolean) {
         scope.launch { userPrefs.setDarkMode(enabled) }
     }
+
+    /**
+     * One-shot repair: NEFT/IMPS credits wrongly stored as TRANSFER (recent over-classification)
+     * are restored to INCOME/EXPENSE so they show in Overview again.
+     */
+    suspend fun repairOverclassifiedTransfers() {
+        val selfTransfer = Regex(
+            """(?i)\b(?:self\s+transfer|transfer\s+to\s+self|own\s+account\s+transfer)\b"""
+        )
+        val rows = transactionDao.getTransactionsByType(TransactionType.TRANSFER.name)
+        for (row in rows) {
+            val body = row.rawSms.ifBlank { row.note }
+            if (body.isBlank()) continue
+            if (selfTransfer.containsMatchIn(body)) continue
+            val lower = body.lowercase()
+            val fixedType = when {
+                lower.contains("credited") || lower.contains("received") ||
+                    lower.contains("deposit") -> TransactionType.INCOME.name
+                lower.contains("debited") || lower.contains("withdrawn") ||
+                    lower.contains("spent") -> TransactionType.EXPENSE.name
+                else -> continue
+            }
+            transactionDao.updateTransaction(
+                row.copy(type = fixedType, updatedAt = System.currentTimeMillis())
+            )
+        }
+    }
+
+    override fun importBackup(
+        payload: com.jllabs.moneylens.utils.MoneyLensBackupPayload,
+        onDone: (Int) -> Unit
+    ) {
+        scope.launch {
+            val count = importBackupPayload(payload)
+            // Caller may update UI; keep on same dispatcher as other repo callbacks.
+            onDone(count)
+        }
+    }
+
+    suspend fun importBackupPayload(payload: com.jllabs.moneylens.utils.MoneyLensBackupPayload): Int {
+        var imported = 0
+        for (cat in payload.categories) {
+            if (cat.id.isBlank()) continue
+            categoryDao.insertCategory(CategoryEntity.fromDomain(cat))
+        }
+        for (acc in payload.accounts) {
+            if (acc.id.isBlank()) continue
+            accountDao.insertAccount(
+                AccountEntity(
+                    id = acc.id,
+                    name = acc.name,
+                    type = acc.type.name,
+                    institution = acc.institution,
+                    startingBalanceMinor = acc.startingBalanceMinor,
+                    icon = acc.icon,
+                    includeInNetWorth = acc.includeInNetWorth,
+                    isArchived = acc.isArchived,
+                    order = acc.order
+                )
+            )
+        }
+        for (tx in payload.transactions) {
+            if (tx.amountMinor <= 0L && tx.type != TransactionType.JUST_INFO) continue
+            val existing = transactionDao.getTransaction(tx.id)
+            if (existing == null) {
+                val dup = if (tx.rawSms.isNotBlank()) {
+                    transactionDao.countDuplicateTransaction(tx.rawSms, tx.amountMinor, tx.date) > 0
+                } else {
+                    transactionDao.countByMerchantAmountDate(tx.merchant, tx.amountMinor, tx.date) > 0
+                }
+                if (dup) continue
+            }
+            transactionDao.insertTransaction(
+                TransactionEntity(
+                    id = tx.id.ifBlank { UUID.randomUUID().toString() },
+                    type = tx.type.name,
+                    amountMinor = tx.amountMinor,
+                    accountId = tx.accountId.ifBlank { "acc-1" },
+                    toAccountId = tx.toAccountId,
+                    categoryId = tx.categoryId.ifBlank { "cat-14" },
+                    merchant = tx.merchant.ifBlank { "Imported" },
+                    bankName = tx.bankName,
+                    accountLast4 = tx.accountLast4,
+                    referenceNumber = tx.referenceNumber,
+                    date = tx.date,
+                    time = tx.time.ifBlank { "12:00" },
+                    note = tx.note,
+                    source = tx.source.ifBlank { "IMPORT" },
+                    status = tx.status,
+                    confidence = tx.confidence,
+                    isManual = tx.isManual,
+                    isReviewed = tx.isReviewed,
+                    rawSms = tx.rawSms,
+                    availableBalanceMinor = tx.availableBalance,
+                    createdAt = tx.createdAt,
+                    updatedAt = System.currentTimeMillis()
+                )
+            )
+            imported++
+        }
+        return imported
+    }
 }

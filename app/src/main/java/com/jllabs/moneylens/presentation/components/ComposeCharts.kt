@@ -1,6 +1,5 @@
 package com.jllabs.moneylens.presentation.components
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -8,16 +7,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.jllabs.moneylens.domain.models.Category
 import kotlin.math.roundToInt
 
 data class PieChartSlice(
@@ -30,83 +24,109 @@ data class PieChartSlice(
 fun CategoryPieChart(
     slices: List<PieChartSlice>,
     modifier: Modifier = Modifier,
-    title: String = "Category Distribution"
+    title: String = "Category spend",
+    isPrivacyMasked: Boolean = false,
+    isDarkMode: Boolean = false
 ) {
     val total = slices.sumOf { it.value.toDouble() }.toFloat()
     if (total <= 0f) return
 
+    val cardBg = if (isDarkMode) Color(0xFF1E241C) else MaterialTheme.colorScheme.surface
+    val ink = if (isDarkMode) Color(0xFFE8EDE8) else MaterialTheme.colorScheme.onSurface
+    val muted = if (isDarkMode) Color(0xFFA8B2A8) else MaterialTheme.colorScheme.onSurfaceVariant
+    val track = if (isDarkMode) Color(0xFF2A322A) else Color(0xFFE4E8E3)
+
     Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = cardBg),
+        shape = RoundedCornerShape(16.dp),
         modifier = modifier.fillMaxWidth()
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(title, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                "Share of expenses in selected period",
-                fontSize = 11.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(16.dp))
+        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
+            Text(title, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = ink)
 
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Compact stacked share strip — replaces the large donut
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(8.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(track)
             ) {
-                Canvas(modifier = Modifier.size(120.dp)) {
-                    var startAngle = -90f
-                    val strokeWidth = 32f
-                    slices.forEach { slice ->
-                        val sweepAngle = (slice.value / total) * 360f
-                        if (sweepAngle > 0f) {
-                            drawArc(
-                                color = slice.color,
-                                startAngle = startAngle,
-                                sweepAngle = sweepAngle.coerceAtLeast(0.5f),
-                                useCenter = false,
-                                style = Stroke(width = strokeWidth)
-                            )
-                            startAngle += sweepAngle
-                        }
-                    }
+                slices.forEach { slice ->
+                    val weight = (slice.value / total).coerceAtLeast(0.01f)
+                    Box(
+                        modifier = Modifier
+                            .weight(weight)
+                            .fillMaxHeight()
+                            .background(slice.color)
+                    )
                 }
+            }
 
-                Spacer(modifier = Modifier.width(16.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    slices.forEach { slice ->
-                        val rawPct = (slice.value / total) * 100f
-                        val pctLabel = when {
-                            rawPct >= 1f -> "${rawPct.roundToInt()}%"
-                            rawPct > 0f -> "<1%"
-                            else -> "0%"
-                        }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                slices.forEach { slice ->
+                    val rawPct = (slice.value / total) * 100f
+                    val pctLabel = when {
+                        rawPct >= 1f -> "${rawPct.roundToInt()}%"
+                        rawPct > 0f -> "<1%"
+                        else -> "0%"
+                    }
+                    val barFraction = (slice.value / total).coerceIn(0.02f, 1f)
+                    val amountText = if (isPrivacyMasked) {
+                        "••••"
+                    } else {
+                        "₹${formatShortCurrency(slice.value)}"
+                    }
+
+                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Box(
                                 modifier = Modifier
-                                    .size(10.dp)
+                                    .size(8.dp)
                                     .background(slice.color, RoundedCornerShape(2.dp))
                             )
                             Spacer(modifier = Modifier.width(6.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "${slice.label} ($pctLabel)",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    maxLines = 1
-                                )
-                                Text(
-                                    text = "₹${"%,.0f".format(slice.value)}",
-                                    fontSize = 10.sp,
-                                    color = Color(0xFF7C8079)
-                                )
-                            }
+                            Text(
+                                text = slice.label,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = ink,
+                                maxLines = 1,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Text(
+                                text = pctLabel,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = muted
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = amountText,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = ink
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(3.dp)
+                                .background(track, RoundedCornerShape(2.dp))
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth(barFraction)
+                                    .fillMaxHeight()
+                                    .background(slice.color, RoundedCornerShape(2.dp))
+                            )
                         }
                     }
                 }

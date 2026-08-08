@@ -33,6 +33,7 @@ interface MoneyLensRepository {
     fun deleteCategory(categoryId: String)
     fun togglePrivacyMask()
     fun setDarkMode(enabled: Boolean)
+    fun importBackup(payload: com.jllabs.moneylens.utils.MoneyLensBackupPayload, onDone: (Int) -> Unit = {})
 }
 
 class DefaultMoneyLensRepository(context: Context? = null) : MoneyLensRepository {
@@ -75,6 +76,12 @@ class DefaultMoneyLensRepository(context: Context? = null) : MoneyLensRepository
             this.roomRepo = repo
             this.userPrefs = prefs
 
+            scope.launch {
+                try {
+                    repo.repairOverclassifiedTransfers()
+                } catch (_: Exception) {
+                }
+            }
             scope.launch {
                 repo.accountsFlow.collect { _accounts.value = it }
             }
@@ -327,6 +334,37 @@ class DefaultMoneyLensRepository(context: Context? = null) : MoneyLensRepository
             }
         } else {
             _isDarkMode.value = enabled
+        }
+    }
+
+    override fun importBackup(
+        payload: com.jllabs.moneylens.utils.MoneyLensBackupPayload,
+        onDone: (Int) -> Unit
+    ) {
+        if (roomRepo != null) {
+            scope.launch {
+                val count = roomRepo?.importBackupPayload(payload) ?: 0
+                kotlinx.coroutines.withContext(Dispatchers.Main) { onDone(count) }
+            }
+        } else {
+            val existingIds = _transactions.value.map { it.id }.toSet()
+            val existingFingerprints = _transactions.value.map {
+                "${it.date}|${it.amountMinor}|${it.merchant}|${it.rawSms.take(80)}"
+            }.toSet()
+            val toAdd = payload.transactions.filter { tx ->
+                tx.id !in existingIds &&
+                    "${tx.date}|${tx.amountMinor}|${tx.merchant}|${tx.rawSms.take(80)}" !in existingFingerprints
+            }
+            _transactions.value = toAdd + _transactions.value
+            if (payload.categories.isNotEmpty()) {
+                val known = _categories.value.map { it.id }.toSet()
+                _categories.value = _categories.value + payload.categories.filter { it.id !in known }
+            }
+            if (payload.accounts.isNotEmpty()) {
+                val known = _accounts.value.map { it.id }.toSet()
+                _accounts.value = _accounts.value + payload.accounts.filter { it.id !in known }
+            }
+            onDone(toAdd.size)
         }
     }
 }

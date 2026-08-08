@@ -6,6 +6,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.pm.PackageManager
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
@@ -17,6 +18,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -36,7 +38,6 @@ import com.jllabs.moneylens.data.parser.SmsInboxScanner
 import com.jllabs.moneylens.domain.models.Category
 import com.jllabs.moneylens.domain.models.SmsQueueItem
 import com.jllabs.moneylens.parser.stage4.DebitCreditDetector
-import com.jllabs.moneylens.presentation.components.PeriodDropdown
 import com.jllabs.moneylens.theme.rememberAppUiColors
 import com.jllabs.moneylens.utils.Money
 import java.text.SimpleDateFormat
@@ -45,9 +46,15 @@ import java.util.Date
 import java.util.Locale
 
 @Composable
-fun SmsInboxScreen(uiState: MoneyLensUiState, viewModel: MoneyLensViewModel) {
+fun SmsInboxScreen(
+    uiState: MoneyLensUiState,
+    viewModel: MoneyLensViewModel,
+    onBack: () -> Unit = {}
+) {
     val context = LocalContext.current
     val ui = rememberAppUiColors(uiState.isDarkMode)
+
+    BackHandler(onBack = onBack)
 
     var hasSmsPermission by remember {
         mutableStateOf(
@@ -59,17 +66,20 @@ fun SmsInboxScreen(uiState: MoneyLensUiState, viewModel: MoneyLensViewModel) {
     var selectedSmsToEdit by remember { mutableStateOf<SmsQueueItem?>(null) }
     var selectedSmsForDetail by remember { mutableStateOf<SmsQueueItem?>(null) }
     var showRationaleDialog by remember { mutableStateOf(false) }
-    // Inbox keeps its own period (default All) — do not reuse Overview's "This Month"
-    var selectedQueueFilter by remember { mutableStateOf("All") }
     var showAddCategory by remember { mutableStateOf(false) }
     var newCategoryName by remember { mutableStateOf("") }
 
-    val queueDateFilters = listOf(
-        "All", "Today", "Yesterday", "This Week", "This Month", "This Quarter", "3 Months", "6 Months", "1 Year"
-    )
-
-    val filteredQueue = remember(uiState.smsQueue, selectedQueueFilter) {
-        filterInboxQueue(uiState.smsQueue, selectedQueueFilter)
+    // Review queue shows every pending SMS — do not apply Overview period filter.
+    // Global search still narrows the list when the user types a query.
+    val filteredQueue = remember(uiState.smsQueue, uiState.searchQuery) {
+        val q = uiState.searchQuery.trim()
+        if (q.isBlank()) uiState.smsQueue
+        else uiState.smsQueue.filter {
+            it.rawText.contains(q, true) ||
+                it.senderAddress.contains(q, true) ||
+                it.bank.contains(q, true) ||
+                it.merchant.contains(q, true)
+        }
     }
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -92,21 +102,26 @@ fun SmsInboxScreen(uiState: MoneyLensUiState, viewModel: MoneyLensViewModel) {
 
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         Spacer(modifier = Modifier.height(8.dp))
-        Text("Inbox queue", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = ui.ink)
-        Text(
-            "Review low-confidence bank SMS before recording",
-            fontSize = 12.sp,
-            color = ui.muted
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-
-        PeriodDropdown(
-            label = "Period",
-            options = queueDateFilters,
-            selected = selectedQueueFilter,
-            onSelected = { selectedQueueFilter = it },
-            modifier = Modifier.fillMaxWidth()
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(
+                    Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Back to Settings",
+                    tint = ui.ink
+                )
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Inbox queue", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = ui.ink)
+                Text(
+                    "${uiState.smsQueue.size} pending · review before recording",
+                    fontSize = 12.sp,
+                    color = ui.muted
+                )
+            }
+        }
         Spacer(modifier = Modifier.height(12.dp))
 
         if (!hasSmsPermission) {
@@ -141,10 +156,11 @@ fun SmsInboxScreen(uiState: MoneyLensUiState, viewModel: MoneyLensViewModel) {
         } else if (filteredQueue.isEmpty()) {
             Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
                 Text(
-                    if (uiState.smsQueue.isEmpty()) {
-                        "All bank SMS parsed & recorded"
-                    } else {
-                        "No messages in $selectedQueueFilter (${uiState.smsQueue.size} total in queue)"
+                    when {
+                        uiState.smsQueue.isEmpty() -> "All bank SMS parsed & recorded"
+                        uiState.searchQuery.isNotBlank() ->
+                            "No matches for “${uiState.searchQuery.trim()}” (${uiState.smsQueue.size} in queue)"
+                        else -> "No messages in queue"
                     },
                     color = ui.muted
                 )

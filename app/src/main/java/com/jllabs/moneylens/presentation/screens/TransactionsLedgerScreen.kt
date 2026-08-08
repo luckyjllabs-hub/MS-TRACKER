@@ -23,6 +23,7 @@ import com.jllabs.moneylens.domain.models.TransactionType
 import com.jllabs.moneylens.presentation.components.PeriodDropdown
 import com.jllabs.moneylens.presentation.components.TransactionRowItem
 import com.jllabs.moneylens.presentation.components.TypeSegmentedControl
+import com.jllabs.moneylens.presentation.components.transactionMatchesSearch
 import com.jllabs.moneylens.utils.Money
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
@@ -35,12 +36,16 @@ fun TransactionsLedgerScreen(uiState: MoneyLensUiState, viewModel: MoneyLensView
     var selectedTxForPopup by remember { mutableStateOf<Transaction?>(null) }
 
     // Apply Type Tab Filter (All, Credit, Debit, Just Info)
-    val typeFilteredTransactions = remember(uiState.transactions, selectedTypeTab) {
-        when (selectedTypeTab) {
+    val typeFilteredTransactions = remember(uiState.transactions, selectedTypeTab, uiState.searchQuery, uiState.categories) {
+        var list = when (selectedTypeTab) {
             "Credit" -> uiState.transactions.filter { it.type == TransactionType.INCOME }
             "Debit" -> uiState.transactions.filter { it.type == TransactionType.EXPENSE && it.smsTransactionSubType != "INFO_ALERT" }
             else -> uiState.transactions
         }
+        if (uiState.searchQuery.isNotBlank()) {
+            list = list.filter { transactionMatchesSearch(it, uiState.searchQuery, uiState.categories) }
+        }
+        list
     }
 
     // Group filtered transactions by date
@@ -65,36 +70,6 @@ fun TransactionsLedgerScreen(uiState: MoneyLensUiState, viewModel: MoneyLensView
         )
 
         Spacer(modifier = Modifier.height(14.dp))
-
-        // Search Bar
-        OutlinedTextField(
-            value = uiState.searchQuery,
-            onValueChange = viewModel::onSearchQueryChange,
-            modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text("Search merchant, category, bank, date, amount...", fontSize = 12.sp) },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search", tint = Color(0xFF7C8079)) },
-            trailingIcon = {
-                if (uiState.searchQuery.isNotEmpty()) {
-                    IconButton(onClick = { viewModel.onSearchQueryChange("") }) {
-                        Icon(Icons.Default.Close, contentDescription = "Clear", tint = Color(0xFF7C8079))
-                    }
-                }
-            },
-            shape = RoundedCornerShape(14.dp),
-            colors = com.jllabs.moneylens.presentation.components.appTextFieldColors(),
-            singleLine = true
-        )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-        PeriodDropdown(
-            label = "Period",
-            options = dateFilterOptions,
-            selected = uiState.selectedFilter,
-            onSelected = { viewModel.onFilterSelect(it) }
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
 
         TypeSegmentedControl(
             options = typeTabOptions,

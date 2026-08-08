@@ -55,7 +55,7 @@ object SmsAccountAggregator {
             }
         }
 
-        return grouped.values.map { pairs ->
+        return grouped.values.mapNotNull { pairs ->
             val sample = pairs.first().second
             val latestActivity = pairs.maxByOrNull { it.first.date + it.first.time }?.first?.date
             val forcedFt = sample.isFasTagAccount || pairs.any { isFasTagTransaction(it.first) }
@@ -65,20 +65,23 @@ object SmsAccountAggregator {
             val forcedCc = !forcedFt && !forcedLoan && (
                 sample.isCreditCard || pairs.any { isCreditCardTransaction(it.first) }
                 )
-            val smsBalance = pairs.mapNotNull { (tx, _) ->
-                val bal = tx.availableBalance
-                    ?: BalanceParser.extractDisplayBalanceMinor(tx.rawSms)
-                bal?.let { Triple(tx.date, tx.createdAt, it) }
-            }.maxWithOrNull(compareBy({ it.first }, { it.second }))
-
-            val hasMoneyMove = pairs.any {
+            val moneyMoveCount = pairs.count {
                 it.first.type == TransactionType.INCOME ||
                     it.first.type == TransactionType.EXPENSE ||
                     it.first.type == TransactionType.TRANSFER
             }
+            val smsBalance = pairs.mapNotNull { (tx, _) ->
+                reliableSmsBalanceMinor(tx)?.let { Triple(tx.date, tx.createdAt, it) }
+            }.maxWithOrNull(compareBy({ it.first }, { it.second }))
+            // Hide pure bank a/c discovery with no money moves and no useful balance.
+            // Keep loan / FASTag / credit-card rows (EMI due, limit notices, etc.).
+            if (moneyMoveCount == 0 && !forcedLoan && !forcedFt && !forcedCc && smsBalance == null) {
+                return@mapNotNull null
+            }
+
             val computed = computeFlowBalanceMinor(pairs.map { it.first })
-            val balanceMinor = smsBalance?.third
-                ?: if (hasMoneyMove) computed else null
+            // Prefer explicit SMS balance when reliable; otherwise running credit−debit.
+            val balanceMinor = smsBalance?.third ?: computed
             val balanceDate = smsBalance?.first ?: latestActivity
 
             val prefix = when {
@@ -106,12 +109,12 @@ object SmsAccountAggregator {
                 balanceMinor = balanceMinor,
                 balanceDate = balanceDate,
                 lastActivityDate = latestActivity,
-                txCount = pairs.size,
+                txCount = moneyMoveCount,
                 isCreditCard = forcedCc,
                 isLoanAccount = forcedLoan,
                 isFasTagAccount = forcedFt
             )
-        }.sortedWith(
+        }.filterNotNull().sortedWith(
             compareBy<SmsAccountRow> {
                 when {
                     it.isCreditCard -> 3
@@ -209,21 +212,55 @@ object SmsAccountAggregator {
     private fun fingerprint(shortBank: String, last4: String): String =
         "${shortBank.uppercase(Locale.US)}|$last4"
 
-    /** Sum credits − debits when SMS has no available-balance line (may be negative). */
+    /**
+     * Running balance from money moves when SMS has no reliable balance line.
+     * Uses chronological order; JUST_INFO with a real balance snap resets the running total.
+     */
     fun computeFlowBalanceMinor(txs: List<Transaction>): Long {
         var bal = 0L
         for (tx in txs.sortedWith(compareBy({ it.date }, { it.time }, { it.createdAt }))) {
             when (tx.type) {
                 TransactionType.INCOME -> bal += tx.amountMinor
                 TransactionType.EXPENSE -> bal -= tx.amountMinor
-                TransactionType.TRANSFER -> bal -= tx.amountMinor
+                TransactionType.TRANSFER -> {
+                    // Outbound transfer reduces this account; inbound self-transfer increases it.
+                    val body = tx.rawSms.lowercase(Locale.US)
+                    if (body.contains("credited") || body.contains("received") ||
+                        body.contains("transfer from")
+                    ) {
+                        bal += tx.amountMinor
+                    } else {
+                        bal -= tx.amountMinor
+                    }
+                }
                 TransactionType.JUST_INFO -> {
-                    val snap = tx.availableBalance ?: BalanceParser.extractDisplayBalanceMinor(tx.rawSms)
+                    val snap = reliableSmsBalanceMinor(tx)
                     if (snap != null) bal = snap
                 }
             }
         }
         return bal
+    }
+
+    /**
+     * Accept SMS balance only when it looks like a real balance line — not the txn amount
+     * mis-parsed as "balance".
+     */
+    fun reliableSmsBalanceMinor(tx: Transaction): Long? {
+        val fromField = tx.availableBalance
+        val fromSms = BalanceParser.extractDisplayBalanceMinor(tx.rawSms)
+        val candidate = fromField ?: fromSms ?: return null
+        val isMoneyMove = tx.type == TransactionType.INCOME ||
+            tx.type == TransactionType.EXPENSE ||
+            tx.type == TransactionType.TRANSFER
+        // Same rupee amount as the debit/credit is almost never the closing balance wording we want.
+        if (isMoneyMove && candidate == tx.amountMinor && fromSms == null) return null
+        if (isMoneyMove && candidate == tx.amountMinor &&
+            !Regex("""(?i)(?:avail(?:able)?\s*)?bal(?:ance)?|avl\s*bal|passbook\s+bal""").containsMatchIn(tx.rawSms)
+        ) {
+            return null
+        }
+        return candidate
     }
 
     fun accountIdFor(

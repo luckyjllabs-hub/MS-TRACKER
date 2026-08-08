@@ -21,9 +21,22 @@ object SuccessDetector {
         )\b""", RegexOption.COMMENTS
     )
 
+    /** Dispute / block-card footers must not kill a completed debit/credit SMS. */
+    private val COMPLETED_MOVEMENT = Regex(
+        """(?i)\b(?:
+            (?:acct|a/?c|account|acc).{0,20}(?:debited|credited)|
+            debited\s+(?:rs\.?|inr|₹)|
+            credited\s*[:\-]?\s*(?:rs\.?|inr|₹)|
+            (?:rs\.?|inr|₹)\s*[\d,]+\.?\d*\s+(?:debited|credited)
+        )""",
+        RegexOption.COMMENTS
+    )
+
     /** Returns true if the message represents a SUCCESSFUL completed transaction */
     fun isSuccessful(body: String): Boolean {
         if (NonTransactionAlertFilter.isNonTransactionAlert(body)) return false
+        // Completed debit/credit SMS often include "SMS BLOCK … to dispute" footers — keep them.
+        if (COMPLETED_MOVEMENT.containsMatchIn(body)) return true
         return !FAILURE_PATTERNS.containsMatchIn(body)
     }
 }

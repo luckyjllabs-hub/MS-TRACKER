@@ -11,8 +11,8 @@ import java.util.Locale
 class CalculateNetWorthUseCase {
     operator fun invoke(accounts: List<Account>, transactions: List<Transaction>): Long {
         val startingNetWorth = accounts.filter { it.includeInNetWorth }.sumOf { it.startingBalanceMinor }
-        val incomeTotal = transactions.filter { it.type == TransactionType.INCOME }.sumOf { it.amountMinor }
-        val expenseTotal = transactions.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amountMinor }
+        val (incomeTotal, expenseTotal) =
+            com.jllabs.moneylens.domain.accounts.InternalTransferClassifier.incomeExpenseTotals(transactions)
         return startingNetWorth + incomeTotal - expenseTotal
     }
 }
@@ -24,7 +24,9 @@ class GetFilteredTransactionsUseCase {
         transactions: List<Transaction>,
         searchQuery: String,
         timeFilter: String,
-        accounts: List<Account> = emptyList()
+        accounts: List<Account> = emptyList(),
+        customStartDate: String? = null,
+        customEndDate: String? = null
     ): List<Transaction> {
         var filtered = transactions
 
@@ -36,9 +38,6 @@ class GetFilteredTransactionsUseCase {
 
         val weekCal = (now.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, -7) }
         val weekStr = dateFormat.format(weekCal.time)
-
-        val monthCal = (now.clone() as Calendar).apply { add(Calendar.MONTH, -1) }
-        val monthStr = dateFormat.format(monthCal.time)
 
         val threeMonthCal = (now.clone() as Calendar).apply { add(Calendar.MONTH, -3) }
         val threeMonthStr = dateFormat.format(threeMonthCal.time)
@@ -56,37 +55,46 @@ class GetFilteredTransactionsUseCase {
         val firstDayStr = dateFormat.format(firstDayOfThisMonth.time)
 
         // 1. Apply Date Filter
-        filtered = when (timeFilter.uppercase().trim()) {
-            "TODAY" -> filtered.filter { it.date == todayStr }
-            "YESTERDAY" -> filtered.filter { it.date == yesterdayStr }
-            "LAST 7 DAYS", "THIS WEEK", "WEEK", "CURRENT WEEK" -> filtered.filter { it.date >= weekStr && it.date <= todayStr }
-            "THIS MONTH", "MONTH", "CURRENT MONTH" -> {
-                val thisMonthList = filtered.filter { it.date >= firstDayStr && it.date <= todayStr }
-                if (thisMonthList.isNotEmpty()) {
-                    thisMonthList
-                } else if (filtered.isNotEmpty()) {
-                    // Fallback to most recent month with data so user never gets a zero screen
-                    val latestDate = filtered.maxOf { it.date }
-                    val latestMonthPrefix = latestDate.take(7) // "yyyy-MM"
-                    filtered.filter { it.date.startsWith(latestMonthPrefix) }
-                } else {
-                    emptyList()
+        filtered = when {
+            timeFilter.equals("Custom", ignoreCase = true) ||
+                timeFilter.equals("Date Range", ignoreCase = true) -> {
+                val start = customStartDate?.takeIf { it.isNotBlank() }
+                val end = customEndDate?.takeIf { it.isNotBlank() }
+                filtered.filter { tx ->
+                    (start == null || tx.date >= start) && (end == null || tx.date <= end)
                 }
             }
-            "3 MONTHS" -> filtered.filter { it.date >= threeMonthStr && it.date <= todayStr }
-            "6 MONTHS" -> filtered.filter { it.date >= sixMonthStr && it.date <= todayStr }
-            "1 YEAR", "YEAR", "CURRENT YEAR" -> filtered.filter { it.date >= oneYearStr && it.date <= todayStr }
-            "3 YEARS" -> filtered.filter { it.date >= threeYearStr && it.date <= todayStr }
-            else -> filtered // "ALL" or unknown
+            else -> when (timeFilter.uppercase().trim()) {
+                "TODAY" -> filtered.filter { it.date == todayStr }
+                "YESTERDAY" -> filtered.filter { it.date == yesterdayStr }
+                "LAST 7 DAYS", "THIS WEEK", "WEEK", "CURRENT WEEK" -> filtered.filter { it.date >= weekStr && it.date <= todayStr }
+                "THIS MONTH", "MONTH", "CURRENT MONTH" -> {
+                    val thisMonthList = filtered.filter { it.date >= firstDayStr && it.date <= todayStr }
+                    if (thisMonthList.isNotEmpty()) {
+                        thisMonthList
+                    } else if (filtered.isNotEmpty()) {
+                        val latestDate = filtered.maxOf { it.date }
+                        val latestMonthPrefix = latestDate.take(7)
+                        filtered.filter { it.date.startsWith(latestMonthPrefix) }
+                    } else {
+                        emptyList()
+                    }
+                }
+                "3 MONTHS" -> filtered.filter { it.date >= threeMonthStr && it.date <= todayStr }
+                "6 MONTHS" -> filtered.filter { it.date >= sixMonthStr && it.date <= todayStr }
+                "1 YEAR", "YEAR", "CURRENT YEAR" -> filtered.filter { it.date >= oneYearStr && it.date <= todayStr }
+                "3 YEARS" -> filtered.filter { it.date >= threeYearStr && it.date <= todayStr }
+                else -> filtered // "ALL" or unknown
+            }
         }
 
-        // 2. Search Query Filter (Merchant, Category, Bank, Account, Date, Amount)
+        // 2. Search Query Filter (Merchant, Category, Bank, Account, Date, Amount, SMS body)
         if (searchQuery.isNotBlank()) {
             val q = searchQuery.trim().lowercase()
             filtered = filtered.filter { tx ->
                 val account = accounts.find { it.id == tx.accountId }
                 val accountName = account?.name?.lowercase() ?: ""
-                val bankName = account?.institution?.lowercase() ?: ""
+                val bankName = (account?.institution ?: tx.bankName).lowercase()
                 val amountRupeesStr = (tx.amountMinor / 100.0).toString()
 
                 tx.merchant.lowercase().contains(q) ||
@@ -95,6 +103,8 @@ class GetFilteredTransactionsUseCase {
                         bankName.contains(q) ||
                         tx.date.lowercase().contains(q) ||
                         tx.note.lowercase().contains(q) ||
+                        tx.rawSms.lowercase().contains(q) ||
+                        tx.accountLast4.contains(q) ||
                         amountRupeesStr.contains(q) ||
                         tx.amountMinor.toString().contains(q)
             }

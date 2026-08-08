@@ -17,6 +17,8 @@ class FakeTransactionDao : TransactionDao {
     val insertedTransactions = mutableListOf<TransactionEntity>()
     override fun getAllTransactions(): Flow<List<TransactionEntity>> = flowOf(insertedTransactions)
     override fun globalSearch(query: String): Flow<List<TransactionEntity>> = flowOf(insertedTransactions)
+    override suspend fun getTransactionsByType(type: String): List<TransactionEntity> =
+        insertedTransactions.filter { it.type == type }
     override suspend fun countByMerchantAmountDate(merchant: String, amountMinor: Long, date: String): Int = 0
     override suspend fun countDuplicateTransaction(rawSms: String, amountMinor: Long, date: String): Int = 0
     override fun getTransactionsByCategory(categoryId: String): Flow<List<TransactionEntity>> =

@@ -2,12 +2,32 @@ package com.jllabs.moneylens.presentation.screens
 
 import android.content.Context
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -19,7 +39,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation3.runtime.NavKey
 import com.jllabs.moneylens.data.DefaultMoneyLensRepository
-import com.jllabs.moneylens.presentation.components.*
+import com.jllabs.moneylens.presentation.components.AddTransactionDialog
+import com.jllabs.moneylens.presentation.components.GlobalSearchBar
+import com.jllabs.moneylens.presentation.components.MoneyLensBottomNavigation
+import com.jllabs.moneylens.presentation.components.PeriodFilterSheet
+import com.jllabs.moneylens.presentation.components.TopAppBarHeader
 import com.jllabs.moneylens.presentation.navigation.AppTab
 import com.jllabs.moneylens.theme.MoneyLensTheme
 
@@ -32,15 +56,26 @@ fun MainScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showAddTxDialog by remember { mutableStateOf(false) }
+    var filterSheetVisible by remember { mutableStateOf(false) }
 
     val configuration = LocalConfiguration.current
     val isTabletOrLandscape = configuration.screenWidthDp >= 600
     val pageBg = if (uiState.isDarkMode) Color(0xFF121612) else Color(0xFFF4F3EF)
     val chromeBg = if (uiState.isDarkMode) Color(0xFF1E241C) else Color.White
 
+    @Composable
+    fun GlobalChrome() {
+        GlobalSearchBar(
+            searchQuery = uiState.searchQuery,
+            selectedFilter = uiState.selectedFilter,
+            isDarkMode = uiState.isDarkMode,
+            onSearchChange = viewModel::onSearchQueryChange,
+            onFilterClick = { filterSheetVisible = true }
+        )
+    }
+
     MoneyLensTheme(darkTheme = uiState.isDarkMode) {
     if (isTabletOrLandscape) {
-        // Adaptive Layout for Medium/Expanded Screens (Tablets, Foldables, Landscape)
         Row(
             modifier = modifier
                 .fillMaxSize()
@@ -89,9 +124,10 @@ fun MainScreen(
             Column(modifier = Modifier.fillMaxSize()) {
                 TopAppBarHeader(
                     activeTab = uiState.activeTab,
-                    smsCount = uiState.smsQueue.size,
-                    onSmsClick = { viewModel.selectTab(AppTab.SMS_INBOX) }
+                    isDarkMode = uiState.isDarkMode,
+                    onToggleDarkMode = { viewModel.setDarkMode(!uiState.isDarkMode) }
                 )
+                GlobalChrome()
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.TopCenter
@@ -103,15 +139,14 @@ fun MainScreen(
             }
         }
     } else {
-        // Standard Compact Layout for Phones (Portrait)
         Scaffold(
             modifier = modifier,
             contentWindowInsets = WindowInsets.safeDrawing,
             topBar = {
                 TopAppBarHeader(
                     activeTab = uiState.activeTab,
-                    smsCount = uiState.smsQueue.size,
-                    onSmsClick = { viewModel.selectTab(AppTab.SMS_INBOX) }
+                    isDarkMode = uiState.isDarkMode,
+                    onToggleDarkMode = { viewModel.setDarkMode(!uiState.isDarkMode) }
                 )
             },
             bottomBar = {
@@ -131,16 +166,29 @@ fun MainScreen(
                 }
             }
         ) { paddingValues ->
-            Box(
+            Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(pageBg)
                     .padding(paddingValues)
             ) {
-                RenderMainTabContent(uiState, viewModel)
+                GlobalChrome()
+                Box(modifier = Modifier.fillMaxSize()) {
+                    RenderMainTabContent(uiState, viewModel)
+                }
             }
         }
     }
+
+    PeriodFilterSheet(
+        visible = filterSheetVisible,
+        selectedFilter = uiState.selectedFilter,
+        customStartDate = uiState.customStartDate,
+        customEndDate = uiState.customEndDate,
+        onDismiss = { filterSheetVisible = false },
+        onFilterSelect = viewModel::onFilterSelect,
+        onCustomRangeChange = viewModel::onCustomDateRangeChange
+    )
 
     if (showAddTxDialog) {
         AddTransactionDialog(
@@ -154,7 +202,7 @@ fun MainScreen(
             }
         )
     }
-    } // MoneyLensTheme
+    }
 }
 
 @Composable
@@ -166,7 +214,11 @@ private fun RenderMainTabContent(uiState: MoneyLensUiState, viewModel: MoneyLens
         AppTab.ACCOUNTS -> AccountsScreen(uiState = uiState, viewModel = viewModel)
         AppTab.BUDGET -> SettingsScreen(uiState = uiState, viewModel = viewModel)
         AppTab.SETTINGS -> SettingsScreen(uiState = uiState, viewModel = viewModel)
-        AppTab.SMS_INBOX -> SmsInboxScreen(uiState = uiState, viewModel = viewModel)
+        AppTab.SMS_INBOX -> SmsInboxScreen(
+            uiState = uiState,
+            viewModel = viewModel,
+            onBack = { viewModel.selectTab(AppTab.SETTINGS) }
+        )
         AppTab.CLASSIFICATION_REVIEW -> SettingsScreen(uiState = uiState, viewModel = viewModel)
     }
 }

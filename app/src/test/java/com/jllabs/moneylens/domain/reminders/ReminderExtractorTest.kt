@@ -9,10 +9,20 @@ import org.junit.Test
 class ReminderExtractorTest {
 
     @Test
-    fun `expired coupon with year 2023 is dropped`() {
-        val body = "Your coupon CODE123 is valid till 15-08-2023. Shop now!"
-        val rem = ReminderExtractor.fromSms(body, "1", "2023-08-01", "HDFC")!!
+    fun `coupon expired yesterday is dropped with no grace`() {
+        val body = "Your coupon CODE123 is valid till 07-08-2026. Shop now!"
+        val rem = ReminderExtractor.fromSms(body, "c1", "2026-08-01", "HDFC")!!
+        assertEquals(ReminderKind.COUPON, rem.kind)
+        assertEquals("2026-08-07", rem.dueDateIso)
         assertTrue(ReminderExtractor.isExpired(rem, todayIso = "2026-08-08"))
+    }
+
+    @Test
+    fun `coupon valid today is kept`() {
+        val body = "Offer valid till 08-08-2026. Use code SAVE."
+        val rem = ReminderExtractor.fromSms(body, "c2", "2026-08-01", "Paytm")!!
+        assertEquals(ReminderKind.COUPON, rem.kind)
+        assertFalse(ReminderExtractor.isExpired(rem, todayIso = "2026-08-08"))
     }
 
     @Test
